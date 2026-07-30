@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
+import CurrencyInput from '../components/CurrencyInput';
 import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useReservation } from '../hooks/useReservation';
@@ -78,6 +79,7 @@ function AccountingForm({
   const navigate = useNavigate();
   const isOnline = useOnlineStatus();
 
+  const [priceAmount, setPriceAmount] = useState(reservation.priceAmount);
   const [pointsUsed, setPointsUsed] = useState(reservation.payment?.pointsUsed ?? 0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
     reservation.payment?.method ?? 'cash',
@@ -90,7 +92,6 @@ function AccountingForm({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const priceAmount = reservation.priceAmount;
   const paidAmount = Math.max(priceAmount - pointsUsed, 0);
   const pointsExceedsPrice = pointsUsed > priceAmount;
 
@@ -109,6 +110,7 @@ function AccountingForm({
           paidAt: new Date().toISOString(),
           paidBy: user.uid,
         },
+        priceAmount,
         isPaidChecked,
         user.uid,
         user.displayName,
@@ -142,11 +144,8 @@ function AccountingForm({
         <div className="glass-card p-5 space-y-5">
           <p className="text-sm font-medium text-ink">{reservation.customerName}様</p>
 
-          {/* 施術金額(表示のみ) */}
-          <div>
-            <p className="text-xs text-ink-soft mb-0.5">施術金額</p>
-            <p className="text-2xl text-ink">{formatCurrency(priceAmount)}</p>
-          </div>
+          {/* 施術金額(予約時点で未定だった場合は、ここで確定・修正できる) */}
+          <CurrencyInput label="施術金額" value={priceAmount} onChange={setPriceAmount} />
 
           {/* 使用ポイント */}
           <div>
