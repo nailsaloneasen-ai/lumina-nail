@@ -107,7 +107,6 @@ export default function CalendarPage() {
                 <button
                   key={cell.date}
                   type="button"
-                  disabled={count === 0}
                   onClick={() => navigate(`/reservations/${cell.date}`)}
                   className={dayCellClass({
                     status,
