@@ -16,10 +16,10 @@
 import type { FirebaseOptions } from 'firebase/app';
 
 export const firebaseConfig: FirebaseOptions = {
-  apiKey: 'ここにFirebaseのapiKeyを貼り付ける',
-  authDomain: 'ここにFirebaseのauthDomainを貼り付ける',
-  projectId: 'ここにFirebaseのprojectIdを貼り付ける',
-  storageBucket: 'ここにFirebaseのstorageBucketを貼り付ける',
-  messagingSenderId: 'ここにFirebaseのmessagingSenderIdを貼り付ける',
-  appId: 'ここにFirebaseのappIdを貼り付ける',
+  apiKey: 'AIzaSyD9MonEhL-uC2nfoiRIrtnJJyUhZftPX00',
+  authDomain: 'lumina-nail.firebaseapp.com',
+  projectId: 'lumina-nail',
+  storageBucket: 'lumina-nail.firebasestorage.app',
+  messagingSenderId: '812999528343',
+  appId: '1:812999528343:web:eacec3d9b4606be71f3ed2',
 };
