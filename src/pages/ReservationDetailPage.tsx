@@ -7,6 +7,13 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useReservation } from '../hooks/useReservation';
 import { softDeleteReservation, updateReservationMemo } from '../lib/reservations';
 import { formatCurrency, formatDateJP, formatPhoneNumber } from '../utils/format';
+import type { PaymentMethod } from '../types';
+
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash: '現金',
+  card: 'カード',
+  emoney: '電子マネー',
+};
 
 /**
  * 予約詳細画面
@@ -147,6 +154,14 @@ export default function ReservationDetailPage() {
             }
             large
           />
+
+          {/* 支払い方法(会計済みの場合のみ表示) */}
+          {reservation.payment && (
+            <DetailRow
+              label="支払い方法"
+              value={PAYMENT_METHOD_LABELS[reservation.payment.method]}
+            />
+          )}
 
           {/* メモ */}
           <div>

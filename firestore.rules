@@ -37,13 +37,13 @@ service cloud.firestore {
 
       // 更新:
       // - オーナーは全項目を編集可能(顧客情報・日時・金額・削除フラグ等)
-      // - 従業員は「会計情報(payment/isPaid)」と「メモ(memo)」、
+      // - 従業員は「施術金額(priceAmount)」「会計情報(payment/isPaid)」「メモ(memo)」、
       //   および更新メタ情報(updatedAt/updatedBy)のみ変更可能
-      //   (会計画面からの支払い入力・メモ編集に対応するための権限)
+      //   (予約時点で未定だった金額を、会計画面で確定させられるようにするための権限)
       allow update: if isOwner() ||
         (isStaff() &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['payment', 'isPaid', 'memo', 'updatedAt', 'updatedBy']));
+            .hasOnly(['priceAmount', 'payment', 'isPaid', 'memo', 'updatedAt', 'updatedBy']));
 
       // 会計修正履歴(オーナーのみ閲覧可能。書き込みは会計操作を行った本人が記録する)
       match /history/{historyId} {

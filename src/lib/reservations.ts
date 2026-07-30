@@ -288,7 +288,7 @@ export async function saveReservationPayment(
     updatedBy: uid,
   });
 
-  // 修正履歴を記録(オーナーのみ閲覧可能。閲覧画面はステップ8で実装)
+  // 修正履歴を記録(オーナーのみ閲覧可能)
   const historyEntry: Omit<PaymentHistoryEntry, 'id'> = {
     reservationId,
     changedAt: now,
