@@ -263,13 +263,16 @@ function paymentHistoryCollectionRef(reservationId: string) {
 /**
  * 会計情報を保存する(新規会計・修正の両方に対応)。
  * 保存と同時に修正履歴(変更前・変更後)を記録する。
+ * 予約時点で未定だった施術金額を、会計時にあわせて確定させることもできる。
  *
+ * @param priceAmount 施術金額(会計時に確定・修正した値)
  * @param isPaidChecked 「会計済」チェックボックスの状態
  */
 export async function saveReservationPayment(
   reservationId: string,
   previousPayment: PaymentInfo | null,
   newPayment: PaymentInfo,
+  priceAmount: number,
   isPaidChecked: boolean,
   uid: string,
   displayName: string,
@@ -279,6 +282,7 @@ export async function saveReservationPayment(
   // 予約本体を更新
   await updateDoc(doc(db, RESERVATIONS_COLLECTION, reservationId), {
     payment: newPayment,
+    priceAmount,
     isPaid: isPaidChecked,
     updatedAt: now,
     updatedBy: uid,
