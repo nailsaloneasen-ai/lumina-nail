@@ -252,12 +252,11 @@ export default function ReservationFormPage() {
             onChange={setPhoneDigits}
           />
 
-          {/* 施術金額 */}
+        {/* 施術金額(任意。予約時点で未定の場合は空欄のまま登録し、会計画面で入力できる) */}
           <CurrencyInput
-            label="施術金額"
+            label="施術金額(未定の場合は空欄のままでOK・会計時に入力できます)"
             value={priceAmount}
             onChange={setPriceAmount}
-            required
           />
 
           {/* メモ */}
