@@ -1,0 +1,62 @@
+rules_version = '2';
+
+// Lumina Nail Firestoreセキュリティルール
+// -----------------------------------------------------------------------
+// ユーザーは2名のみ(owner@lumina-nail.local / guest@lumina-nail.local)。
+// ログインIDは src/lib/authMapping.ts の疑似メールアドレス変換と対応している。
+//
+// 権限方針:
+// - オーナー: 予約の作成・全項目編集・削除、会計、修正履歴閲覧すべて可能
+// - 従業員(guest): 予約の閲覧のみ可能。書き込みは「会計情報(payment/isPaid)」
+//   「メモ(memo)」に限定(予約追加・全項目編集・削除は不可)
+// -----------------------------------------------------------------------
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner() {
+      return isSignedIn() && request.auth.token.email == 'owner@lumina-nail.local';
+    }
+
+    function isStaff() {
+      return isSignedIn() && request.auth.token.email == 'guest@lumina-nail.local';
+    }
+
+    match /reservations/{reservationId} {
+      // 閲覧: ログイン済みなら誰でも可能(予約閲覧はオーナー・従業員どちらも許可)
+      allow read: if isSignedIn();
+
+      // 作成: オーナーのみ(予約追加はオーナー専用の権限)
+      allow create: if isOwner();
+
+      // 完全削除: オーナーのみ(ゴミ箱の期限切れクリーンアップもオーナー操作として実行される)
+      allow delete: if isOwner();
+
+      // 更新:
+      // - オーナーは全項目を編集可能(顧客情報・日時・金額・削除フラグ等)
+      // - 従業員は「会計情報(payment/isPaid)」と「メモ(memo)」、
+      //   および更新メタ情報(updatedAt/updatedBy)のみ変更可能
+      //   (会計画面からの支払い入力・メモ編集に対応するための権限)
+      allow update: if isOwner() ||
+        (isStaff() &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['payment', 'isPaid', 'memo', 'updatedAt', 'updatedBy']));
+
+      // 会計修正履歴(オーナーのみ閲覧可能。書き込みは会計操作を行った本人が記録する)
+      match /history/{historyId} {
+        allow read: if isOwner();
+        allow create: if isSignedIn();
+        // 履歴は改ざん防止のため、作成後の更新・削除は不可
+        allow update, delete: if false;
+      }
+    }
+
+    // 上記以外のコレクションへのアクセスはすべて拒否(デフォルト拒否)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

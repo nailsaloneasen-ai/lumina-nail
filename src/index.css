@@ -1,0 +1,91 @@
+@import 'tailwindcss';
+
+/**
+ * Lumina Nail ブランドカラートークン
+ * 高級ネイルサロンをイメージした「白 × ピンクベージュ × ゴールド」の配色。
+ * EASENサロンの既存Webサイトと統一感を持たせたパレットをベースにしている。
+ */
+@theme {
+  /* ベースカラー */
+  --color-lumina-white: #ffffff;
+  --color-lumina-cream: #fef0f6; /* パレピンク */
+  --color-lumina-blush: #fae4ee; /* ソフトピンク */
+
+  /* アクセント: ピンク〜ウィステリア */
+  --color-lumina-pink: #f2a7c3;
+  --color-lumina-pink-deep: #d9709a;
+  --color-lumina-wisteria: #6b5898;
+  --color-lumina-wisteria-light: #7d6aaa;
+
+  /* ゴールド / シルバー(高級感のアクセント) */
+  --color-lumina-gold: #d4af6e;
+  --color-lumina-gold-light: #e8cfa0;
+  --color-lumina-silver: #b8bdc8;
+
+  /* ステータスカラー(カレンダー用) */
+  --color-status-none: #eef0f2; /* 予約なし */
+  --color-status-unpaid: #f8b4d0; /* 未会計 */
+  --color-status-paid: #9bd6b0; /* 会計済 */
+  --color-status-today: #d4af6e; /* 今日 */
+
+  /* テキスト */
+  --color-ink: #3a2e3f;
+  --color-ink-soft: #6f6376;
+
+  /* フォント */
+  --font-display: 'Cormorant Garamond', 'Noto Serif JP', serif;
+  --font-body:
+    'Zen Kaku Gothic New', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+
+  /* 角丸(上品な丸み) */
+  --radius-card: 1.25rem;
+  --radius-pill: 999px;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background: linear-gradient(
+      170deg,
+      var(--color-lumina-cream) 0%,
+      var(--color-lumina-white) 45%
+    );
+    color: var(--color-ink);
+    min-height: 100dvh;
+    /* iOSでのバウンススクロールによる白背景ちらつき対策 */
+    overscroll-behavior-y: none;
+  }
+
+  /* 親指で押しやすいタップ領域の最小サイズ(iPhone最適化) */
+  button,
+  a,
+  input,
+  select {
+    min-height: 44px;
+  }
+}
+
+@layer components {
+  /* ガラス風カード(高級感の基本パーツ) */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: var(--radius-card);
+    box-shadow: 0 8px 32px rgba(107, 88, 152, 0.08);
+  }
+
+  .brand-gradient {
+    background: linear-gradient(
+      160deg,
+      var(--color-lumina-pink-deep) 0%,
+      #9b72b8 50%,
+      var(--color-lumina-wisteria-light) 100%
+    );
+  }
+}
