@@ -140,7 +140,11 @@ export default function ReservationDetailPage() {
 
           <DetailRow
             label="施術金額"
-            value={formatCurrency(reservation.priceAmount)}
+            value={
+              reservation.priceAmount > 0
+                ? formatCurrency(reservation.priceAmount)
+                : '未定(会計時に入力)'
+            }
             large
           />
 
