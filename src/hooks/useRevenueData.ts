@@ -10,6 +10,8 @@ import type { Reservation, RevenuePeriod, RevenueSummary } from '../types';
 interface UseRevenueDataResult {
   summary: RevenueSummary;
   unpaidReservations: Reservation[];
+  /** 期間内の全予約(支払い方法別の内訳表示などに使用) */
+  reservations: Reservation[];
   isLoading: boolean;
   errorMessage: string | null;
 }
@@ -53,6 +55,7 @@ export function useRevenueData(period: RevenuePeriod): UseRevenueDataResult {
   return {
     summary: reservations.length > 0 ? summarizeRevenue(reservations) : EMPTY_SUMMARY,
     unpaidReservations: filterUnpaidReservations(reservations),
+    reservations,
     isLoading,
     errorMessage,
   };

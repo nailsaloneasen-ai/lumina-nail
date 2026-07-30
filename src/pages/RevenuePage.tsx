@@ -5,8 +5,15 @@ import BottomNav from '../components/BottomNav';
 import ReservationListItem from '../components/ReservationListItem';
 import { useAuth } from '../contexts/AuthContext';
 import { useRevenueData } from '../hooks/useRevenueData';
-import { formatCurrency } from '../utils/format';
-import type { RevenuePeriod } from '../types';
+import { filterPaidByMethod } from '../lib/revenue';
+import { formatCurrency, formatDateJP } from '../utils/format';
+import type { PaymentMethod, RevenuePeriod } from '../types';
+
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash: '現金',
+  card: 'カード',
+  emoney: '電子マネー',
+};
 
 const PERIOD_LABELS: Record<RevenuePeriod, string> = {
   today: '今日',
@@ -25,7 +32,9 @@ export default function RevenuePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [period, setPeriod] = useState<RevenuePeriod>('today');
-  const { summary, unpaidReservations, isLoading, errorMessage } = useRevenueData(period);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
+  const { summary, unpaidReservations, reservations, isLoading, errorMessage } =
+    useRevenueData(period);
 
   // 従業員がURLを直接開いた場合の防御(ナビゲーション上は従業員に表示されない)
   if (user?.role !== 'owner') {
@@ -78,11 +87,23 @@ export default function RevenuePage() {
           </p>
         </div>
 
-        {/* 支払い方法別 */}
+        {/* 支払い方法別(タップすると内訳が見られる) */}
         <div className="glass-card p-5 grid grid-cols-3 gap-3 text-center">
-          <SummaryItem label="現金" value={formatCurrency(summary.cashRevenue)} />
-          <SummaryItem label="カード" value={formatCurrency(summary.cardRevenue)} />
-          <SummaryItem label="電子マネー" value={formatCurrency(summary.emoneyRevenue)} />
+          <SummaryItem
+            label="現金"
+            value={formatCurrency(summary.cashRevenue)}
+            onClick={() => setSelectedMethod('cash')}
+          />
+          <SummaryItem
+            label="カード"
+            value={formatCurrency(summary.cardRevenue)}
+            onClick={() => setSelectedMethod('card')}
+          />
+          <SummaryItem
+            label="電子マネー"
+            value={formatCurrency(summary.emoneyRevenue)}
+            onClick={() => setSelectedMethod('emoney')}
+          />
         </div>
 
         {/* その他指標 */}
@@ -126,16 +147,131 @@ export default function RevenuePage() {
         </div>
       </main>
 
+      {selectedMethod && (
+        <PaymentMethodDetailModal
+          method={selectedMethod}
+          periodLabel={PERIOD_LABELS[period]}
+          entries={filterPaidByMethod(reservations, selectedMethod)}
+          onClose={() => setSelectedMethod(null)}
+          onSelectReservation={(id) => navigate(`/reservation/${id}`)}
+        />
+      )}
+
       <BottomNav />
     </div>
   );
 }
 
-function SummaryItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
+function SummaryItem({
+  label,
+  value,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  onClick?: () => void;
+}) {
+  const content = (
+    <>
       <p className="text-[11px] text-ink-soft mb-1">{label}</p>
       <p className="text-sm font-medium text-ink">{value}</p>
+    </>
+  );
+
+  if (!onClick) {
+    return <div>{content}</div>;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full rounded-lg py-1 -my-1 active:bg-lumina-blush/40 transition-colors"
+    >
+      {content}
+    </button>
+  );
+}
+
+/**
+ * 支払い方法別の内訳詳細モーダル。
+ * 「現金」「カード」「電子マネー」いずれかをタップすると、
+ * その方法で支払われた予約(誰がいくら払ったか)を一覧表示する。
+ */
+function PaymentMethodDetailModal({
+  method,
+  periodLabel,
+  entries,
+  onClose,
+  onSelectReservation,
+}: {
+  method: PaymentMethod;
+  periodLabel: string;
+  entries: ReturnType<typeof filterPaidByMethod>;
+  onClose: () => void;
+  onSelectReservation: (id: string) => void;
+}) {
+  const total = entries.reduce((sum, r) => sum + (r.payment?.paidAmount ?? 0), 0);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center
+                 bg-ink/30 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="glass-card w-full max-w-sm bg-white/95 max-h-[80vh] flex flex-col">
+        <div className="p-5 pb-3 flex items-center justify-between shrink-0">
+          <div>
+            <p className="text-xs text-ink-soft">
+              {periodLabel} ・ {PAYMENT_METHOD_LABELS[method]}の内訳
+            </p>
+            <p className="text-xl text-ink" style={{ fontFamily: 'var(--font-display)' }}>
+              {formatCurrency(total)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="閉じる"
+            className="h-8 w-8 flex items-center justify-center rounded-full text-ink-soft
+                       active:bg-lumina-blush/40"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="px-5 pb-5 overflow-y-auto space-y-2">
+          {entries.length === 0 ? (
+            <p className="text-sm text-ink-soft text-center py-6">
+              この期間の{PAYMENT_METHOD_LABELS[method]}での支払いはありません
+            </p>
+          ) : (
+            entries.map((reservation) => (
+              <button
+                key={reservation.id}
+                type="button"
+                onClick={() => onSelectReservation(reservation.id)}
+                className="w-full flex items-center justify-between gap-3 rounded-xl
+                           bg-white/70 px-4 py-3 text-left active:bg-lumina-blush/40 transition-colors"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-ink truncate">
+                    {reservation.customerName}
+                  </p>
+                  <p className="text-xs text-ink-soft truncate">
+                    {formatDateJP(reservation.date)}
+                    {reservation.startTime && ` ${reservation.startTime}`}
+                  </p>
+                </div>
+                <p className="shrink-0 text-sm font-medium text-ink">
+                  {formatCurrency(reservation.payment?.paidAmount ?? 0)}
+                </p>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }

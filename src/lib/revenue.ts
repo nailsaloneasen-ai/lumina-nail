@@ -1,5 +1,5 @@
 import { toDateString, todayDateString } from '../utils/format';
-import type { Reservation, RevenuePeriod, RevenueSummary } from '../types';
+import type { PaymentMethod, Reservation, RevenuePeriod, RevenueSummary } from '../types';
 
 /**
  * 売上集計まわりのロジック
@@ -76,4 +76,21 @@ export function filterUnpaidReservations(reservations: Reservation[]): Reservati
   return reservations
     .filter((r) => !r.isPaid)
     .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+}
+
+/**
+ * 予約一覧から、指定した支払い方法で会計済み(かつ売上対象)の予約のみを抽出する。
+ * 売上画面で「現金」「カード」「電子マネー」の内訳をタップした際の詳細表示に使用する。
+ * 日付の新しい順に並べる。
+ */
+export function filterPaidByMethod(
+  reservations: Reservation[],
+  method: PaymentMethod,
+): Reservation[] {
+  return reservations
+    .filter(
+      (r) =>
+        r.isPaid && r.payment && r.payment.isRevenueTarget && r.payment.method === method,
+    )
+    .sort((a, b) => (b.date + b.startTime).localeCompare(a.date + a.startTime));
 }
