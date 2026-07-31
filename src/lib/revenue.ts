@@ -94,3 +94,17 @@ export function filterPaidByMethod(
     )
     .sort((a, b) => (b.date + b.startTime).localeCompare(a.date + a.startTime));
 }
+
+/**
+ * 予約一覧から、ポイントを利用して会計済み(かつ売上対象)の予約のみを抽出する。
+ * 売上画面で「ポイント利用」をタップした際の詳細表示(誰がいつ何ポイント使ったか)に使用する。
+ * 日付の新しい順に並べる。
+ */
+export function filterPointsUsage(reservations: Reservation[]): Reservation[] {
+  return reservations
+    .filter(
+      (r) =>
+        r.isPaid && r.payment && r.payment.isRevenueTarget && r.payment.pointsUsed > 0,
+    )
+    .sort((a, b) => (b.date + b.startTime).localeCompare(a.date + a.startTime));
+}

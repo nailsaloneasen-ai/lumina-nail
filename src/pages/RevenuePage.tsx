@@ -5,7 +5,7 @@ import BottomNav from '../components/BottomNav';
 import ReservationListItem from '../components/ReservationListItem';
 import { useAuth } from '../contexts/AuthContext';
 import { useRevenueData } from '../hooks/useRevenueData';
-import { filterPaidByMethod } from '../lib/revenue';
+import { filterPaidByMethod, filterPointsUsage } from '../lib/revenue';
 import { formatCurrency, formatDateJP } from '../utils/format';
 import type { PaymentMethod, RevenuePeriod } from '../types';
 
@@ -33,6 +33,7 @@ export default function RevenuePage() {
   const navigate = useNavigate();
   const [period, setPeriod] = useState<RevenuePeriod>('today');
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
+  const [showPointsDetail, setShowPointsDetail] = useState(false);
   const { summary, unpaidReservations, reservations, isLoading, errorMessage } =
     useRevenueData(period);
 
@@ -111,6 +112,7 @@ export default function RevenuePage() {
           <SummaryItem
             label="ポイント利用"
             value={formatCurrency(summary.totalPointsUsed)}
+            onClick={() => setShowPointsDetail(true)}
           />
           <SummaryItem label="客数" value={`${summary.customerCount}人`} />
           <SummaryItem label="平均客単価" value={formatCurrency(summary.averageSpend)} />
@@ -153,6 +155,15 @@ export default function RevenuePage() {
           periodLabel={PERIOD_LABELS[period]}
           entries={filterPaidByMethod(reservations, selectedMethod)}
           onClose={() => setSelectedMethod(null)}
+          onSelectReservation={(id) => navigate(`/reservation/${id}`)}
+        />
+      )}
+
+      {showPointsDetail && (
+        <PointsDetailModal
+          periodLabel={PERIOD_LABELS[period]}
+          entries={filterPointsUsage(reservations)}
+          onClose={() => setShowPointsDetail(false)}
           onSelectReservation={(id) => navigate(`/reservation/${id}`)}
         />
       )}
@@ -266,6 +277,84 @@ function PaymentMethodDetailModal({
                 </div>
                 <p className="shrink-0 text-sm font-medium text-ink">
                   {formatCurrency(reservation.payment?.paidAmount ?? 0)}
+                </p>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * ポイント利用の内訳詳細モーダル。
+ * 「ポイント利用」をタップすると、誰がいつ何ポイント使ったかを一覧表示する。
+ */
+function PointsDetailModal({
+  periodLabel,
+  entries,
+  onClose,
+  onSelectReservation,
+}: {
+  periodLabel: string;
+  entries: ReturnType<typeof filterPointsUsage>;
+  onClose: () => void;
+  onSelectReservation: (id: string) => void;
+}) {
+  const total = entries.reduce((sum, r) => sum + (r.payment?.pointsUsed ?? 0), 0);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center
+                 bg-ink/30 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="glass-card w-full max-w-sm bg-white/95 max-h-[80vh] flex flex-col">
+        <div className="p-5 pb-3 flex items-center justify-between shrink-0">
+          <div>
+            <p className="text-xs text-ink-soft">{periodLabel} ・ ポイント利用の内訳</p>
+            <p className="text-xl text-ink" style={{ fontFamily: 'var(--font-display)' }}>
+              {total.toLocaleString('ja-JP')}pt
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="閉じる"
+            className="h-8 w-8 flex items-center justify-center rounded-full text-ink-soft
+                       active:bg-lumina-blush/40"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="px-5 pb-5 overflow-y-auto space-y-2">
+          {entries.length === 0 ? (
+            <p className="text-sm text-ink-soft text-center py-6">
+              この期間のポイント利用はありません
+            </p>
+          ) : (
+            entries.map((reservation) => (
+              <button
+                key={reservation.id}
+                type="button"
+                onClick={() => onSelectReservation(reservation.id)}
+                className="w-full flex items-center justify-between gap-3 rounded-xl
+                           bg-white/70 px-4 py-3 text-left active:bg-lumina-blush/40 transition-colors"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-ink truncate">
+                    {reservation.customerName}
+                  </p>
+                  <p className="text-xs text-ink-soft truncate">
+                    {formatDateJP(reservation.date)}
+                    {reservation.startTime && ` ${reservation.startTime}`}
+                  </p>
+                </div>
+                <p className="shrink-0 text-sm font-medium text-ink">
+                  {(reservation.payment?.pointsUsed ?? 0).toLocaleString('ja-JP')}pt
                 </p>
               </button>
             ))

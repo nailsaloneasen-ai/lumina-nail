@@ -155,12 +155,22 @@ export default function ReservationDetailPage() {
             large
           />
 
-          {/* 支払い方法(会計済みの場合のみ表示) */}
+          {/* 支払い方法・ポイント利用(会計済みの場合のみ表示) */}
           {reservation.payment && (
-            <DetailRow
-              label="支払い方法"
-              value={PAYMENT_METHOD_LABELS[reservation.payment.method]}
-            />
+            <>
+              <DetailRow
+                label="支払い方法"
+                value={PAYMENT_METHOD_LABELS[reservation.payment.method]}
+              />
+              <DetailRow
+                label="ポイント利用"
+                value={
+                  reservation.payment.pointsUsed > 0
+                    ? `${reservation.payment.pointsUsed.toLocaleString('ja-JP')}pt`
+                    : '利用なし'
+                }
+              />
+            </>
           )}
 
           {/* メモ */}
