@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import CalendarPage from './pages/CalendarPage';
+import SearchPage from './pages/SearchPage';
 import ReservationListPage from './pages/ReservationListPage';
 import ReservationDetailPage from './pages/ReservationDetailPage';
 import ReservationFormPage from './pages/ReservationFormPage';
@@ -42,6 +43,7 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/search" element={<SearchPage />} />
         <Route path="/reservations/:date" element={<ReservationListPage />} />
         <Route path="/reservations/:date/new" element={<ReservationFormPage />} />
         <Route path="/reservation/:id" element={<ReservationDetailPage />} />

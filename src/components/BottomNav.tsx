@@ -27,6 +27,10 @@ export default function BottomNav() {
         <CalendarIcon />
         カレンダー
       </NavLink>
+      <NavLink to="/search" className={linkClass}>
+        <SearchIcon />
+        検索
+      </NavLink>
       {isOwner && (
         <NavLink to="/revenue" className={linkClass}>
           <RevenueIcon />
@@ -71,6 +75,20 @@ function CalendarIcon() {
       />
       <path
         d="M4 9.5h16M8 3.5v3M16 3.5v3"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d="M20 20l-4.5-4.5"
         stroke="currentColor"
         strokeWidth="1.7"
         strokeLinecap="round"

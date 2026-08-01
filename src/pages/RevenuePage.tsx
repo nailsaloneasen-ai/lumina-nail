@@ -10,8 +10,9 @@ import {
   filterPaidByMethod,
   filterPointsUsage,
 } from '../lib/revenue';
+import { downloadCsvFile, generateRevenueCsv } from '../lib/csvExport';
 import { formatCurrency, formatDateJP, todayDateString } from '../utils/format';
-import type { PaymentMethod, RevenuePeriod } from '../types';
+import type { PaymentMethod, Reservation, RevenuePeriod, RevenueSummary } from '../types';
 
 const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: '現金',
@@ -57,6 +58,15 @@ export default function RevenuePage() {
       ? `${formatShortDate(range.start)}〜${formatShortDate(range.end)}`
       : PERIOD_LABELS[period];
 
+  function handleExportCsv() {
+    const csv = generateRevenueCsv(reservations);
+    downloadCsvFile(csv, `lumina-nail-売上_${range.start}_${range.end}.csv`);
+  }
+
+  function handleExportPdf() {
+    window.print();
+  }
+
   // 従業員がURLを直接開いた場合の防御(ナビゲーション上は従業員に表示されない)
   if (user?.role !== 'owner') {
     return (
@@ -75,9 +85,11 @@ export default function RevenuePage() {
 
   return (
     <div className="min-h-dvh pb-24">
-      <AppHeader title="売上" />
+      <div className="no-print">
+        <AppHeader title="売上" />
+      </div>
 
-      <main className="px-5 -mt-2 pt-6 space-y-5">
+      <main className="no-print px-5 -mt-2 pt-6 space-y-5">
         {/* 期間切り替え */}
         <div className="glass-card p-1.5 flex gap-1">
           {(Object.keys(PERIOD_LABELS) as RevenuePeriod[]).map((key) => (
@@ -172,6 +184,26 @@ export default function RevenuePage() {
           <SummaryItem label="平均客単価" value={formatCurrency(summary.averageSpend)} />
         </div>
 
+        {/* データ出力(CSV/PDF) */}
+        <div className="no-print flex gap-3">
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="flex-1 rounded-xl py-3 text-sm font-medium text-lumina-wisteria
+                       border border-lumina-wisteria/30 active:bg-lumina-blush/40 transition-colors"
+          >
+            CSV出力
+          </button>
+          <button
+            type="button"
+            onClick={handleExportPdf}
+            className="flex-1 rounded-xl py-3 text-sm font-medium text-lumina-wisteria
+                       border border-lumina-wisteria/30 active:bg-lumina-blush/40 transition-colors"
+          >
+            PDF出力(印刷)
+          </button>
+        </div>
+
         {/* 未会計一覧 */}
         <div className="glass-card p-5">
           <div className="flex items-center justify-between mb-3">
@@ -222,8 +254,101 @@ export default function RevenuePage() {
         />
       )}
 
-      <BottomNav />
+      {/* 印刷(PDF出力)専用のレポート。画面上には表示されず、印刷時にのみ表示される */}
+      <PrintableRevenueReport
+        periodLabel={periodLabel}
+        summary={summary}
+        reservations={reservations}
+      />
+
+      <div className="no-print">
+        <BottomNav />
+      </div>
     </div>
+  );
+}
+
+/**
+ * PDF出力(印刷)専用のレポート。
+ * 通常時は非表示(.print-only)で、window.print()が呼ばれた時のみ表示される。
+ */
+function PrintableRevenueReport({
+  periodLabel,
+  summary,
+  reservations,
+}: {
+  periodLabel: string;
+  summary: RevenueSummary;
+  reservations: Reservation[];
+}) {
+  const targetReservations = reservations
+    .filter((r) => r.isPaid && r.payment && r.payment.isRevenueTarget)
+    .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+
+  return (
+    <div className="print-only p-8 text-black">
+      <h1 className="text-2xl font-bold mb-1">Lumina Nail 売上レポート</h1>
+      <p className="text-sm mb-6">対象期間: {periodLabel}</p>
+
+      <table className="w-full text-sm mb-8 border-collapse">
+        <tbody>
+          <PrintSummaryRow label="総売上" value={formatCurrency(summary.totalRevenue)} />
+          <PrintSummaryRow label="現金" value={formatCurrency(summary.cashRevenue)} />
+          <PrintSummaryRow label="カード" value={formatCurrency(summary.cardRevenue)} />
+          <PrintSummaryRow
+            label="電子マネー"
+            value={formatCurrency(summary.emoneyRevenue)}
+          />
+          <PrintSummaryRow
+            label="ポイント利用"
+            value={`${summary.totalPointsUsed.toLocaleString('ja-JP')}pt`}
+          />
+          <PrintSummaryRow label="客数" value={`${summary.customerCount}人`} />
+          <PrintSummaryRow
+            label="平均客単価"
+            value={formatCurrency(summary.averageSpend)}
+          />
+        </tbody>
+      </table>
+
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr className="border-b-2 border-black">
+            <th className="text-left py-1 pr-2">日付</th>
+            <th className="text-left py-1 pr-2">顧客名</th>
+            <th className="text-right py-1 pr-2">施術金額</th>
+            <th className="text-right py-1 pr-2">ポイント</th>
+            <th className="text-right py-1 pr-2">支払金額</th>
+            <th className="text-left py-1">方法</th>
+          </tr>
+        </thead>
+        <tbody>
+          {targetReservations.map((r) => (
+            <tr key={r.id} className="border-b border-gray-300">
+              <td className="py-1 pr-2">{r.date}</td>
+              <td className="py-1 pr-2">{r.customerName}</td>
+              <td className="text-right py-1 pr-2">{formatCurrency(r.priceAmount)}</td>
+              <td className="text-right py-1 pr-2">
+                {r.payment!.pointsUsed.toLocaleString('ja-JP')}pt
+              </td>
+              <td className="text-right py-1 pr-2">
+                {formatCurrency(r.payment!.paidAmount)}
+              </td>
+              <td className="py-1">{PAYMENT_METHOD_LABELS[r.payment!.method]}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PrintSummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <tr className="border-b border-gray-300">
+      <td className="py-1.5 pr-4 font-medium">{label}</td>
+      <td className="py-1.5 text-right">{value}</td>
+    </tr>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -45,6 +45,7 @@ export default function ReservationFormPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingOverlapSave, setPendingOverlapSave] = useState(false);
+  const [pendingLeaveConfirm, setPendingLeaveConfirm] = useState(false);
 
   // 編集モード: 既存データを読み込んでフォームに反映する
   useEffect(() => {
@@ -70,6 +71,51 @@ export default function ReservationFormPage() {
   }, [isEditMode, idParam]);
 
   const endTime = startTime ? calculateEndTime(startTime, durationMinutes) : '';
+
+  // --- 未保存の変更を検知する仕組み ---
+  // 初期データの読み込み(編集モード時)による変更は「未保存」とみなさないよう、
+  // isInitialLoadingがtrueの間、および読み込み完了直後の1回はスキップする。
+  const isDirtyRef = useRef(false);
+  const hasSkippedFirstChangeRef = useRef(false);
+
+  useEffect(() => {
+    if (isInitialLoading) return;
+    if (!hasSkippedFirstChangeRef.current) {
+      hasSkippedFirstChangeRef.current = true;
+      return;
+    }
+    isDirtyRef.current = true;
+  }, [
+    isInitialLoading,
+    date,
+    startTime,
+    durationMinutes,
+    customerName,
+    customerKana,
+    phoneDigits,
+    priceAmount,
+    memo,
+  ]);
+
+  // ブラウザのタブを閉じる・リロードする際に、未保存の変更があれば確認ダイアログを出す
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (!isDirtyRef.current) return;
+      e.preventDefault();
+      e.returnValue = '';
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  /** キャンセルボタン等、アプリ内で離脱しようとした時に未保存の変更があれば確認する */
+  function handleLeaveAttempt() {
+    if (isDirtyRef.current) {
+      setPendingLeaveConfirm(true);
+    } else {
+      navigate(-1);
+    }
+  }
 
   function validate(): string | null {
     if (!customerName.trim()) return '顧客名を入力してください';
@@ -97,9 +143,11 @@ export default function ReservationFormPage() {
     try {
       if (isEditMode && idParam) {
         await updateReservationDetails(idParam, input, user.uid);
+        isDirtyRef.current = false;
         navigate(`/reservation/${idParam}`);
       } else {
         const newId = await createReservation(input, user.uid);
+        isDirtyRef.current = false;
         navigate(`/reservation/${newId}`);
       }
     } catch {
@@ -288,7 +336,7 @@ export default function ReservationFormPage() {
           <div className="flex gap-3 pt-2">
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              onClick={handleLeaveAttempt}
               className="flex-1 rounded-xl py-3.5 text-sm font-medium text-ink-soft
                          border border-lumina-blush active:bg-lumina-blush/40 transition-colors"
             >
@@ -317,6 +365,21 @@ export default function ReservationFormPage() {
           onConfirm={() => {
             setPendingOverlapSave(false);
             void persist();
+          }}
+        />
+      )}
+      {pendingLeaveConfirm && (
+        <ConfirmDialog
+          title="保存されていません"
+          message={'入力した内容は保存されていません。\nこのまま画面を閉じますか?'}
+          confirmLabel="保存せずに閉じる"
+          cancelLabel="入力に戻る"
+          danger
+          onCancel={() => setPendingLeaveConfirm(false)}
+          onConfirm={() => {
+            isDirtyRef.current = false;
+            setPendingLeaveConfirm(false);
+            navigate(-1);
           }}
         />
       )}

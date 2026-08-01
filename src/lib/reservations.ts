@@ -299,3 +299,53 @@ export async function saveReservationPayment(
   };
   await addDoc(paymentHistoryCollectionRef(reservationId), historyEntry);
 }
+
+/**
+ * 顧客名・読み仮名で予約を検索する(前方一致)。
+ * Firestoreは全文検索に対応していないため、range検索(>=, <=)を使った
+ * 前方一致検索という形で実装している('\uf8ff' はUnicodeのほぼ最大値の文字で、
+ * 「入力文字列で始まるすべての文字列」を表す範囲の終端として使う定石)。
+ *
+ * 顧客名(customerName)と読み仮名(customerKana)の両方を対象に検索し、
+ * 結果をマージして重複を除いたうえで、日付の新しい順に並べて返す。
+ * 削除済み(ゴミ箱)の予約は検索対象外。
+ */
+export async function searchReservationsByCustomerName(
+  queryText: string,
+): Promise<Reservation[]> {
+  const trimmed = queryText.trim();
+  if (!trimmed) return [];
+
+  const upperBound = `${trimmed}\uf8ff`;
+
+  const [byName, byKana] = await Promise.all([
+    getDocs(
+      query(
+        reservationsCollectionRef(),
+        where('isDeleted', '==', false),
+        where('customerName', '>=', trimmed),
+        where('customerName', '<=', upperBound),
+      ),
+    ),
+    getDocs(
+      query(
+        reservationsCollectionRef(),
+        where('isDeleted', '==', false),
+        where('customerKana', '>=', trimmed),
+        where('customerKana', '<=', upperBound),
+      ),
+    ),
+  ]);
+
+  const resultMap = new Map<string, Reservation>();
+  for (const docSnapshot of [...byName.docs, ...byKana.docs]) {
+    resultMap.set(docSnapshot.id, {
+      id: docSnapshot.id,
+      ...docSnapshot.data(),
+    } as Reservation);
+  }
+
+  return Array.from(resultMap.values()).sort((a, b) =>
+    (b.date + b.startTime).localeCompare(a.date + a.startTime),
+  );
+}
