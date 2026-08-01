@@ -112,7 +112,7 @@ export interface RevenueSummary {
   averageSpend: number;
 }
 
-export type RevenuePeriod = 'today' | 'month' | 'year';
+export type RevenuePeriod = 'today' | 'month' | 'year' | 'custom';
 
 /** バックアップ(JSONエクスポート/インポート)のペイロード形状 */
 export interface BackupPayload {

@@ -79,6 +79,20 @@ export default function HomePage() {
         </div>
       </main>
 
+      {/* オーナーのみ: 今日の予約をすぐ追加できるフローティングボタン */}
+      {isOwner && (
+        <button
+          type="button"
+          onClick={() => navigate(`/reservations/${todayDateString()}/new`)}
+          aria-label="今日の予約を追加"
+          className="fixed right-5 bottom-24 h-14 w-14 rounded-full brand-gradient text-white
+                     text-3xl leading-none flex items-center justify-center
+                     shadow-lg shadow-lumina-wisteria/30 active:opacity-90 transition-opacity z-10"
+        >
+          +
+        </button>
+      )}
+
       <BottomNav />
     </div>
   );

@@ -3,21 +3,23 @@ import {
   groupReservationsByDate,
   subscribeReservationsByDateRange,
 } from '../lib/reservations';
-import { monthDateRange } from '../utils/calendar';
 import type { Reservation } from '../types';
 
-interface UseMonthReservationsResult {
+interface UseReservationsInRangeResult {
   /** 日付(YYYY-MM-DD) → その日の予約配列 */
   reservationsByDate: Map<string, Reservation[]>;
   isLoading: boolean;
   errorMessage: string | null;
 }
 
-/** 指定した年月の予約一覧を取得し、日付ごとにグルーピングして返すフック */
-export function useMonthReservations(
-  year: number,
-  month: number,
-): UseMonthReservationsResult {
+/**
+ * 指定した日付範囲(start〜end、YYYY-MM-DD)の予約一覧を取得し、
+ * 日付ごとにグルーピングして返すフック。カレンダーの月表示・週表示の両方で使用する。
+ */
+export function useReservationsInRange(
+  start: string,
+  end: string,
+): UseReservationsInRangeResult {
   const [reservationsByDate, setReservationsByDate] = useState<
     Map<string, Reservation[]>
   >(new Map());
@@ -25,8 +27,6 @@ export function useMonthReservations(
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const { start, end } = monthDateRange(year, month);
-
     const unsubscribe = subscribeReservationsByDateRange(
       start,
       end,
@@ -42,7 +42,7 @@ export function useMonthReservations(
     );
 
     return unsubscribe;
-  }, [year, month]);
+  }, [start, end]);
 
   return { reservationsByDate, isLoading, errorMessage };
 }

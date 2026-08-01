@@ -5,8 +5,12 @@ import BottomNav from '../components/BottomNav';
 import ReservationListItem from '../components/ReservationListItem';
 import { useAuth } from '../contexts/AuthContext';
 import { useRevenueData } from '../hooks/useRevenueData';
-import { filterPaidByMethod, filterPointsUsage } from '../lib/revenue';
-import { formatCurrency, formatDateJP } from '../utils/format';
+import {
+  dateRangeForPeriod,
+  filterPaidByMethod,
+  filterPointsUsage,
+} from '../lib/revenue';
+import { formatCurrency, formatDateJP, todayDateString } from '../utils/format';
 import type { PaymentMethod, RevenuePeriod } from '../types';
 
 const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -19,6 +23,7 @@ const PERIOD_LABELS: Record<RevenuePeriod, string> = {
   today: '今日',
   month: '今月',
   year: '年',
+  custom: '期間指定',
 };
 
 /**
@@ -32,10 +37,25 @@ export default function RevenuePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [period, setPeriod] = useState<RevenuePeriod>('today');
+  const [customStart, setCustomStart] = useState(todayDateString());
+  const [customEnd, setCustomEnd] = useState(todayDateString());
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [showPointsDetail, setShowPointsDetail] = useState(false);
+
+  // 期間指定(custom)の場合はカスタム日付を、それ以外はプリセット期間から範囲を計算する。
+  // 終了日が開始日より前になっていたら、開始日と同じ日にそろえる(安全策)。
+  const range =
+    period === 'custom'
+      ? { start: customStart, end: customEnd < customStart ? customStart : customEnd }
+      : dateRangeForPeriod(period);
+
   const { summary, unpaidReservations, reservations, isLoading, errorMessage } =
-    useRevenueData(period);
+    useRevenueData(range.start, range.end);
+
+  const periodLabel =
+    period === 'custom'
+      ? `${formatShortDate(range.start)}〜${formatShortDate(range.end)}`
+      : PERIOD_LABELS[period];
 
   // 従業員がURLを直接開いた場合の防御(ナビゲーション上は従業員に表示されない)
   if (user?.role !== 'owner') {
@@ -65,7 +85,7 @@ export default function RevenuePage() {
               key={key}
               type="button"
               onClick={() => setPeriod(key)}
-              className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition-colors ${
+              className={`flex-1 rounded-xl py-2.5 text-xs sm:text-sm font-medium transition-colors ${
                 period === key
                   ? 'brand-gradient text-white'
                   : 'text-ink-soft active:bg-lumina-blush/40'
@@ -76,13 +96,47 @@ export default function RevenuePage() {
           ))}
         </div>
 
+        {/* 期間指定の場合の開始日・終了日入力 */}
+        {period === 'custom' && (
+          <div className="glass-card p-4 grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="customStart" className="block text-xs text-ink-soft mb-1">
+                開始日
+              </label>
+              <input
+                id="customStart"
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                className="w-full rounded-lg border border-lumina-blush bg-white/80 px-2 py-2
+                           text-sm text-ink outline-none focus:border-lumina-pink-deep
+                           focus:ring-2 focus:ring-lumina-pink/40"
+              />
+            </div>
+            <div>
+              <label htmlFor="customEnd" className="block text-xs text-ink-soft mb-1">
+                終了日
+              </label>
+              <input
+                id="customEnd"
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className="w-full rounded-lg border border-lumina-blush bg-white/80 px-2 py-2
+                           text-sm text-ink outline-none focus:border-lumina-pink-deep
+                           focus:ring-2 focus:ring-lumina-pink/40"
+              />
+            </div>
+          </div>
+        )}
+
         {errorMessage && (
           <p className="text-sm text-lumina-pink-deep text-center">{errorMessage}</p>
         )}
 
         {/* 総売上 */}
         <div className="glass-card p-6 text-center">
-          <p className="text-xs text-ink-soft mb-1">総売上({PERIOD_LABELS[period]})</p>
+          <p className="text-xs text-ink-soft mb-1">総売上({periodLabel})</p>
           <p className="text-4xl text-ink" style={{ fontFamily: 'var(--font-display)' }}>
             {formatCurrency(summary.totalRevenue)}
           </p>
@@ -152,7 +206,7 @@ export default function RevenuePage() {
       {selectedMethod && (
         <PaymentMethodDetailModal
           method={selectedMethod}
-          periodLabel={PERIOD_LABELS[period]}
+          periodLabel={periodLabel}
           entries={filterPaidByMethod(reservations, selectedMethod)}
           onClose={() => setSelectedMethod(null)}
           onSelectReservation={(id) => navigate(`/reservation/${id}`)}
@@ -161,7 +215,7 @@ export default function RevenuePage() {
 
       {showPointsDetail && (
         <PointsDetailModal
-          periodLabel={PERIOD_LABELS[period]}
+          periodLabel={periodLabel}
           entries={filterPointsUsage(reservations)}
           onClose={() => setShowPointsDetail(false)}
           onSelectReservation={(id) => navigate(`/reservation/${id}`)}
@@ -171,6 +225,12 @@ export default function RevenuePage() {
       <BottomNav />
     </div>
   );
+}
+
+/** YYYY-MM-DD形式の日付を「7/1」のような短い表記に変換する(期間指定の見出し用) */
+function formatShortDate(dateString: string): string {
+  const [, month, day] = dateString.split('-').map(Number);
+  return `${month}/${day}`;
 }
 
 function SummaryItem({

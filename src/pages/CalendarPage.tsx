@@ -1,16 +1,29 @@
-import { useState } from 'react';
+import { useRef, useState, type TouchEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
 import BottomNav from '../components/BottomNav';
-import { useMonthReservations } from '../hooks/useMonthReservations';
-import { buildMonthGrid, shiftMonth } from '../utils/calendar';
+import { useReservationsInRange } from '../hooks/useReservationsInRange';
+import {
+  buildMonthGrid,
+  buildWeekGrid,
+  formatWeekRangeLabel,
+  monthDateRange,
+  shiftMonth,
+  shiftWeek,
+  weekDateRange,
+} from '../utils/calendar';
 import { getDayStatus } from '../lib/reservations';
 import { todayDateString } from '../utils/format';
 
 const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
 
+/** 左右スワイプと判定する最小移動距離(px)。これより小さい動きは無視する。 */
+const SWIPE_THRESHOLD = 50;
+
+type ViewMode = 'month' | 'week';
+
 /**
- * カレンダー画面(月表示)
+ * カレンダー画面(月表示・週表示)
  * -----------------------------------------------------------------------
  * 各日に予約人数を表示し、以下のルールで背景色を変える。
  * - 予約なし: 通常色
@@ -18,21 +31,33 @@ const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
  * - 予約あり・全員会計済み: グリーン
  * - 今日: ゴールド枠(他の色分けと重ねて表示)
  *
+ * 上部の切り替えボタンで「月」「週」表示を切り替えられる。
+ * 前後の月・週への移動は、矢印ボタンのタップに加えて、
+ * カレンダー部分を左右にスワイプすることでも行える。
+ *
  * 人数(セル)をタップすると、その日の予約一覧画面へ遷移する。
  * -----------------------------------------------------------------------
  */
 export default function CalendarPage() {
   const navigate = useNavigate();
   const today = new Date();
+
+  const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
+  const [weekAnchor, setWeekAnchor] = useState(today);
 
-  const { reservationsByDate, isLoading, errorMessage } = useMonthReservations(
-    year,
-    month,
-  );
-  const cells = buildMonthGrid(year, month);
   const todayString = todayDateString();
+
+  const range =
+    viewMode === 'month' ? monthDateRange(year, month) : weekDateRange(weekAnchor);
+  const { reservationsByDate, isLoading, errorMessage } = useReservationsInRange(
+    range.start,
+    range.end,
+  );
+
+  const cells =
+    viewMode === 'month' ? buildMonthGrid(year, month) : buildWeekGrid(weekAnchor);
 
   function goToMonth(delta: number) {
     const next = shiftMonth(year, month, delta);
@@ -40,30 +65,97 @@ export default function CalendarPage() {
     setMonth(next.month);
   }
 
+  function goToWeek(delta: number) {
+    setWeekAnchor((current) => shiftWeek(current, delta));
+  }
+
+  function goPrev() {
+    if (viewMode === 'month') goToMonth(-1);
+    else goToWeek(-1);
+  }
+
+  function goNext() {
+    if (viewMode === 'month') goToMonth(1);
+    else goToWeek(1);
+  }
+
+  // --- スワイプ操作(左右にスワイプで前後の月/週へ移動) ---
+  const touchStartX = useRef<number | null>(null);
+
+  function handleTouchStart(e: TouchEvent<HTMLDivElement>) {
+    touchStartX.current = e.touches[0].clientX;
+  }
+
+  function handleTouchEnd(e: TouchEvent<HTMLDivElement>) {
+    if (touchStartX.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+
+    if (deltaX > SWIPE_THRESHOLD) {
+      goPrev(); // 右にスワイプ = 前へ
+    } else if (deltaX < -SWIPE_THRESHOLD) {
+      goNext(); // 左にスワイプ = 次へ
+    }
+  }
+
   return (
     <div className="min-h-dvh pb-24">
       <AppHeader title="カレンダー" />
 
       <main className="px-5 -mt-2 pt-6">
-        <div className="glass-card p-4">
-          {/* 月切り替え */}
+        {/* 表示切り替え(月/週) */}
+        <div className="glass-card p-1.5 flex gap-1 mb-3">
+          <button
+            type="button"
+            onClick={() => setViewMode('month')}
+            className={`flex-1 rounded-xl py-2 text-sm font-medium transition-colors ${
+              viewMode === 'month'
+                ? 'brand-gradient text-white'
+                : 'text-ink-soft active:bg-lumina-blush/40'
+            }`}
+          >
+            月表示
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('week')}
+            className={`flex-1 rounded-xl py-2 text-sm font-medium transition-colors ${
+              viewMode === 'week'
+                ? 'brand-gradient text-white'
+                : 'text-ink-soft active:bg-lumina-blush/40'
+            }`}
+          >
+            週表示
+          </button>
+        </div>
+
+        <div
+          className="glass-card p-4"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          {/* 月/週切り替え */}
           <div className="flex items-center justify-between mb-4 px-1">
             <button
               type="button"
-              onClick={() => goToMonth(-1)}
-              aria-label="前の月"
+              onClick={goPrev}
+              aria-label="前へ"
               className="h-10 w-10 flex items-center justify-center rounded-full
                          text-lumina-wisteria active:bg-lumina-blush/50"
             >
               ‹
             </button>
             <p className="text-lg text-ink" style={{ fontFamily: 'var(--font-display)' }}>
-              {year}年{month}月
+              {viewMode === 'month' ? (
+                `${year}年${month}月`
+              ) : (
+                <span className="text-base">{formatWeekRangeLabel(weekAnchor)}</span>
+              )}
             </p>
             <button
               type="button"
-              onClick={() => goToMonth(1)}
-              aria-label="次の月"
+              onClick={goNext}
+              aria-label="次へ"
               className="h-10 w-10 flex items-center justify-center rounded-full
                          text-lumina-wisteria active:bg-lumina-blush/50"
             >
@@ -128,6 +220,10 @@ export default function CalendarPage() {
           {isLoading && (
             <p className="text-xs text-ink-soft text-center pt-4">読み込み中…</p>
           )}
+
+          <p className="text-[11px] text-ink-soft text-center pt-3">
+            左右にスワイプでも移動できます
+          </p>
         </div>
 
         {/* 凡例 */}

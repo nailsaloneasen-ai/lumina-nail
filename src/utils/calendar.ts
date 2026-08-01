@@ -64,3 +64,44 @@ export function monthDateRange(
   const end = toDateString(new Date(year, month, 0));
   return { start, end };
 }
+
+/**
+ * 指定した日付を含む週(日曜始まり)の7日分のグリッドを生成する。
+ * 週表示では「前後月」の概念がないため isCurrentMonth は常にtrueにしている。
+ */
+export function buildWeekGrid(anchorDate: Date): CalendarCell[] {
+  const startOfWeek = new Date(anchorDate);
+  startOfWeek.setDate(anchorDate.getDate() - anchorDate.getDay());
+
+  const cells: CalendarCell[] = [];
+  for (let i = 0; i < 7; i += 1) {
+    const date = new Date(startOfWeek);
+    date.setDate(startOfWeek.getDate() + i);
+    cells.push({ date: toDateString(date), day: date.getDate(), isCurrentMonth: true });
+  }
+  return cells;
+}
+
+/** 前週・翌週への移動先の基準日を計算する */
+export function shiftWeek(anchorDate: Date, delta: number): Date {
+  const date = new Date(anchorDate);
+  date.setDate(anchorDate.getDate() + delta * 7);
+  return date;
+}
+
+/** 週の範囲(日曜〜土曜、YYYY-MM-DD)を計算する(Firestoreクエリの範囲指定に使用) */
+export function weekDateRange(anchorDate: Date): { start: string; end: string } {
+  const startOfWeek = new Date(anchorDate);
+  startOfWeek.setDate(anchorDate.getDate() - anchorDate.getDay());
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  return { start: toDateString(startOfWeek), end: toDateString(endOfWeek) };
+}
+
+/** 週表示のヘッダーに使う「7月1日 〜 7月7日」のような表示文字列を生成する */
+export function formatWeekRangeLabel(anchorDate: Date): string {
+  const { start, end } = weekDateRange(anchorDate);
+  const [, startMonth, startDay] = start.split('-').map(Number);
+  const [, endMonth, endDay] = end.split('-').map(Number);
+  return `${startMonth}月${startDay}日 〜 ${endMonth}月${endDay}日`;
+}
