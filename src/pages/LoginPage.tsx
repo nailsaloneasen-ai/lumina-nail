@@ -40,7 +40,7 @@ export default function LoginPage() {
         {/* ブランドヘッダー */}
         <div className="text-center mb-8">
           <p className="text-xs tracking-[0.3em] text-lumina-wisteria font-medium mb-2">
-            LUMINA NAIL
+            S'ARGENT
           </p>
           <h1 className="text-3xl text-ink" style={{ fontFamily: 'var(--font-display)' }}>
             ログイン

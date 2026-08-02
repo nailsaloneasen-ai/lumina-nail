@@ -287,7 +287,7 @@ function PrintableRevenueReport({
 
   return (
     <div className="print-only p-8 text-black">
-      <h1 className="text-2xl font-bold mb-1">Lumina Nail 売上レポート</h1>
+      <h1 className="text-2xl font-bold mb-1">S'Argent 売上レポート</h1>
       <p className="text-sm mb-6">対象期間: {periodLabel}</p>
 
       <table className="w-full text-sm mb-8 border-collapse">

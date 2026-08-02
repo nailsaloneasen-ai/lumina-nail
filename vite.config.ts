@@ -18,8 +18,8 @@ export default defineConfig({
 
       // アプリの見た目(ホーム画面追加時のアイコン・名称・色)
       manifest: {
-        name: 'Lumina Nail',
-        short_name: 'Lumina Nail',
+        name: "S'Argent",
+        short_name: "S'Argent",
         description: 'ネイルサロン向け予約・会計管理アプリ',
         lang: 'ja',
         start_url: REPO_BASE_PATH,

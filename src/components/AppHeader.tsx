@@ -16,7 +16,7 @@ export default function AppHeader({ title }: AppHeaderProps) {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[10px] tracking-[0.3em] text-white/70 font-medium">
-            LUMINA NAIL
+            S'ARGENT
           </p>
           <h1
             className="text-2xl text-white"
