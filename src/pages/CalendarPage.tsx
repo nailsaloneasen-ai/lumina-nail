@@ -2,6 +2,9 @@ import { useRef, useState, type TouchEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
 import BottomNav from '../components/BottomNav';
+import PullToRefreshIndicator from '../components/PullToRefreshIndicator';
+import { useToast } from '../contexts/ToastContext';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { useReservationsInRange } from '../hooks/useReservationsInRange';
 import {
   buildMonthGrid,
@@ -34,12 +37,14 @@ type ViewMode = 'month' | 'week';
  * 上部の切り替えボタンで「月」「週」表示を切り替えられる。
  * 前後の月・週への移動は、矢印ボタンのタップに加えて、
  * カレンダー部分を左右にスワイプすることでも行える。
+ * 画面を上から下に引っ張ると更新した手応え(プルリフレッシュ)が得られる。
  *
  * 人数(セル)をタップすると、その日の予約一覧画面へ遷移する。
  * -----------------------------------------------------------------------
  */
 export default function CalendarPage() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const today = new Date();
 
   const [viewMode, setViewMode] = useState<ViewMode>('month');
@@ -55,6 +60,12 @@ export default function CalendarPage() {
     range.start,
     range.end,
   );
+
+  const {
+    pullDistance,
+    isRefreshing,
+    touchHandlers: pullHandlers,
+  } = usePullToRefresh(() => showToast('最新の状態です'));
 
   const cells =
     viewMode === 'month' ? buildMonthGrid(year, month) : buildWeekGrid(weekAnchor);
@@ -82,11 +93,11 @@ export default function CalendarPage() {
   // --- スワイプ操作(左右にスワイプで前後の月/週へ移動) ---
   const touchStartX = useRef<number | null>(null);
 
-  function handleTouchStart(e: TouchEvent<HTMLDivElement>) {
+  function handleSwipeStart(e: TouchEvent<HTMLDivElement>) {
     touchStartX.current = e.touches[0].clientX;
   }
 
-  function handleTouchEnd(e: TouchEvent<HTMLDivElement>) {
+  function handleSwipeEnd(e: TouchEvent<HTMLDivElement>) {
     if (touchStartX.current === null) return;
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
     touchStartX.current = null;
@@ -99,8 +110,10 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="min-h-dvh pb-24">
+    <div className="min-h-dvh pb-24" {...pullHandlers}>
       <AppHeader title="カレンダー" />
+
+      <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
 
       <main className="px-5 -mt-2 pt-6">
         {/* 表示切り替え(月/週) */}
@@ -131,8 +144,8 @@ export default function CalendarPage() {
 
         <div
           className="glass-card p-4"
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
+          onTouchStart={handleSwipeStart}
+          onTouchEnd={handleSwipeEnd}
         >
           {/* 月/週切り替え */}
           <div className="flex items-center justify-between mb-4 px-1">
@@ -141,7 +154,8 @@ export default function CalendarPage() {
               onClick={goPrev}
               aria-label="前へ"
               className="h-10 w-10 flex items-center justify-center rounded-full
-                         text-lumina-wisteria active:bg-lumina-blush/50"
+                         text-lumina-wisteria transition-transform
+                         active:bg-lumina-blush/50 active:scale-90"
             >
               ‹
             </button>
@@ -157,7 +171,8 @@ export default function CalendarPage() {
               onClick={goNext}
               aria-label="次へ"
               className="h-10 w-10 flex items-center justify-center rounded-full
-                         text-lumina-wisteria active:bg-lumina-blush/50"
+                         text-lumina-wisteria transition-transform
+                         active:bg-lumina-blush/50 active:scale-90"
             >
               ›
             </button>
@@ -249,7 +264,7 @@ function dayCellClass({
   isCurrentMonth: boolean;
 }): string {
   const base =
-    'aspect-square flex flex-col items-center justify-center rounded-lg transition-colors';
+    'aspect-square flex flex-col items-center justify-center rounded-lg transition-transform active:scale-90';
 
   const statusClass =
     status === 'unpaid'

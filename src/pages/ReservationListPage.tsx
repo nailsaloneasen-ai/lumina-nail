@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import AppHeader from '../components/AppHeader';
 import BottomNav from '../components/BottomNav';
 import ReservationListItem from '../components/ReservationListItem';
+import { ReservationListSkeleton } from '../components/Skeleton';
 import type { Reservation } from '../types';
 
 /**
@@ -53,7 +54,8 @@ export default function ReservationListPage() {
             <button
               type="button"
               onClick={() => navigate(`/reservations/${date}/new`)}
-              className="text-sm font-medium text-white brand-gradient rounded-full px-4 py-2"
+              className="text-sm font-medium text-white brand-gradient rounded-full px-4 py-2
+                         transition-transform active:scale-95"
             >
               + 新規予約
             </button>
@@ -63,9 +65,7 @@ export default function ReservationListPage() {
         <p className="text-sm text-ink-soft">{formatDateJP(date)}</p>
 
         <div className="glass-card p-5">
-          {isLoading && (
-            <p className="text-sm text-ink-soft py-6 text-center">読み込み中…</p>
-          )}
+          {isLoading && <ReservationListSkeleton />}
 
           {!isLoading && reservations.length === 0 && (
             <p className="text-sm text-ink-soft py-6 text-center">

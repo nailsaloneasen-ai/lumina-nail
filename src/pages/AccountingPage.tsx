@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
 import CurrencyInput from '../components/CurrencyInput';
+import { DetailFieldsSkeleton } from '../components/Skeleton';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useReservation } from '../hooks/useReservation';
 import { saveReservationPayment, updateReservationMemo } from '../lib/reservations';
@@ -41,8 +43,13 @@ export default function AccountingPage() {
 
   if (reservation === undefined) {
     return (
-      <div className="min-h-dvh flex items-center justify-center">
-        <p className="text-sm text-ink-soft">読み込み中…</p>
+      <div className="min-h-dvh pb-16">
+        <AppHeader title="会計" />
+        <main className="px-5 -mt-2 pt-6">
+          <div className="glass-card p-5">
+            <DetailFieldsSkeleton />
+          </div>
+        </main>
       </div>
     );
   }
@@ -77,6 +84,7 @@ function AccountingForm({
   user: AppUser;
 }) {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const isOnline = useOnlineStatus();
 
   const [priceAmount, setPriceAmount] = useState(reservation.priceAmount);
@@ -122,6 +130,7 @@ function AccountingForm({
       }
 
       navigate(`/reservation/${id}`);
+      showToast('会計を保存しました');
     } catch {
       setSaveError('保存に失敗しました。通信環境をご確認のうえ再度お試しください。');
       setIsSaving(false);
@@ -248,7 +257,7 @@ function AccountingForm({
             onClick={() => void handleSave()}
             className="w-full brand-gradient rounded-xl py-3.5 text-white font-medium
                        shadow-lg shadow-lumina-wisteria/20 disabled:opacity-60
-                       transition-opacity active:opacity-90"
+                       transition-[opacity,transform] active:opacity-90 active:scale-[0.98]"
           >
             {isSaving ? '保存中…' : '保存'}
           </button>

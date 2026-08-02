@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
-import ConfirmDialog from '../components/ConfirmDialog';
+import { DetailFieldsSkeleton } from '../components/Skeleton';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useReservation } from '../hooks/useReservation';
 import { softDeleteReservation, updateReservationMemo } from '../lib/reservations';
+import { restoreReservation } from '../lib/trash';
 import { formatCurrency, formatDateJP, formatPhoneNumber } from '../utils/format';
 import type { PaymentMethod } from '../types';
 
@@ -22,19 +24,22 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
  * ・編集・削除ボタンはオーナーのみ
  * ・メモはオーナーはこの画面からいつでも編集可能。従業員は閲覧のみで、
  *   「会計画面からのみ編集可能」という要件のため、この画面では編集不可。
- * ・支払いボタンは全員が利用可能(会計画面はステップ6で実装)
+ * ・支払いボタンは全員が利用可能
+ *
+ * 削除操作は、確認ダイアログで止める方式ではなく、即座に削除(ゴミ箱行き)した上で
+ * 「削除しました [元に戻す]」というトースト通知を数秒表示する方式にしている。
+ * ゴミ箱機能があるため、確認ダイアログを挟まなくても実質的な安全性は保たれる。
  * -----------------------------------------------------------------------
  */
 export default function ReservationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const isOnline = useOnlineStatus();
   const { reservation, errorMessage } = useReservation(id);
 
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-
   const [isEditingMemo, setIsEditingMemo] = useState(false);
   const [memoDraft, setMemoDraft] = useState('');
   const [isSavingMemo, setIsSavingMemo] = useState(false);
@@ -51,8 +56,13 @@ export default function ReservationDetailPage() {
 
   if (reservation === undefined) {
     return (
-      <div className="min-h-dvh flex items-center justify-center">
-        <p className="text-sm text-ink-soft">読み込み中…</p>
+      <div className="min-h-dvh pb-16">
+        <AppHeader title="予約詳細" />
+        <main className="px-5 -mt-2 pt-6">
+          <div className="glass-card p-5">
+            <DetailFieldsSkeleton />
+          </div>
+        </main>
       </div>
     );
   }
@@ -73,14 +83,20 @@ export default function ReservationDetailPage() {
   }
 
   async function handleDelete() {
-    if (!user || !id) return;
+    if (!user || !id || !reservation) return;
     setIsDeleting(true);
     try {
       await softDeleteReservation(id, user.uid);
-      navigate(`/reservations/${reservation!.date}`);
+      const deletedDate = reservation.date;
+      showToast('削除しました', {
+        actionLabel: '元に戻す',
+        onAction: () => void restoreReservation(id, user.uid),
+        durationMs: 5000,
+      });
+      navigate(`/reservations/${deletedDate}`);
     } catch {
       setIsDeleting(false);
-      setIsDeleteDialogOpen(false);
+      showToast('削除に失敗しました');
     }
   }
 
@@ -95,6 +111,7 @@ export default function ReservationDetailPage() {
     try {
       await updateReservationMemo(id, memoDraft, user.uid);
       setIsEditingMemo(false);
+      showToast('メモを保存しました');
     } finally {
       setIsSavingMemo(false);
     }
@@ -108,7 +125,7 @@ export default function ReservationDetailPage() {
         <button
           type="button"
           onClick={() => navigate(`/reservations/${reservation.date}`)}
-          className="text-sm text-lumina-wisteria"
+          className="text-sm text-lumina-wisteria active:opacity-60 transition-opacity"
         >
           ← 予約一覧に戻る
         </button>
@@ -181,7 +198,7 @@ export default function ReservationDetailPage() {
                 <button
                   type="button"
                   onClick={startEditingMemo}
-                  className="text-xs text-lumina-wisteria"
+                  className="text-xs text-lumina-wisteria active:opacity-60 transition-opacity"
                 >
                   編集
                 </button>
@@ -202,7 +219,7 @@ export default function ReservationDetailPage() {
                   <button
                     type="button"
                     onClick={() => setIsEditingMemo(false)}
-                    className="rounded-lg px-3 py-1.5 text-xs text-ink-soft"
+                    className="rounded-lg px-3 py-1.5 text-xs text-ink-soft active:opacity-60 transition-opacity"
                   >
                     キャンセル
                   </button>
@@ -210,7 +227,8 @@ export default function ReservationDetailPage() {
                     type="button"
                     disabled={isSavingMemo || !isOnline}
                     onClick={() => void saveMemo()}
-                    className="rounded-lg px-4 py-1.5 text-xs text-white brand-gradient disabled:opacity-60"
+                    className="rounded-lg px-4 py-1.5 text-xs text-white brand-gradient
+                               disabled:opacity-60 transition-transform active:scale-95"
                   >
                     {isSavingMemo ? '保存中…' : '保存'}
                   </button>
@@ -235,7 +253,8 @@ export default function ReservationDetailPage() {
           type="button"
           onClick={() => navigate(`/reservation/${id}/pay`)}
           className="w-full brand-gradient rounded-xl py-3.5 text-white font-medium
-                     shadow-lg shadow-lumina-wisteria/20 active:opacity-90 transition-opacity"
+                     shadow-lg shadow-lumina-wisteria/20 transition-[opacity,transform]
+                     active:opacity-90 active:scale-[0.98]"
         >
           {reservation.isPaid ? '会計内容を確認・修正' : '支払い'}
         </button>
@@ -247,19 +266,20 @@ export default function ReservationDetailPage() {
               type="button"
               onClick={() => navigate(`/reservation/${id}/edit`)}
               className="flex-1 rounded-xl py-3 text-sm font-medium text-lumina-wisteria
-                         border border-lumina-wisteria/30 active:bg-lumina-blush/40 transition-colors"
+                         border border-lumina-wisteria/30 transition-[background-color,transform]
+                         active:bg-lumina-blush/40 active:scale-[0.98]"
             >
               編集
             </button>
             <button
               type="button"
-              disabled={!isOnline}
-              onClick={() => setIsDeleteDialogOpen(true)}
+              disabled={!isOnline || isDeleting}
+              onClick={() => void handleDelete()}
               className="flex-1 rounded-xl py-3 text-sm font-medium text-lumina-pink-deep
-                         border border-lumina-pink-deep/30 active:bg-lumina-cream transition-colors
-                         disabled:opacity-50"
+                         border border-lumina-pink-deep/30 transition-[background-color,transform]
+                         active:bg-lumina-cream active:scale-[0.98] disabled:opacity-50"
             >
-              削除
+              {isDeleting ? '削除中…' : '削除'}
             </button>
           </div>
         )}
@@ -269,24 +289,12 @@ export default function ReservationDetailPage() {
           <button
             type="button"
             onClick={() => navigate(`/reservation/${id}/history`)}
-            className="w-full text-center text-xs text-lumina-wisteria py-2"
+            className="w-full text-center text-xs text-lumina-wisteria py-2 active:opacity-60 transition-opacity"
           >
             修正履歴を見る
           </button>
         )}
       </main>
-
-      {isDeleteDialogOpen && (
-        <ConfirmDialog
-          title="予約の削除"
-          message="本当に削除しますか?"
-          confirmLabel={isDeleting ? '削除中…' : '削除する'}
-          cancelLabel="キャンセル"
-          danger
-          onCancel={() => setIsDeleteDialogOpen(false)}
-          onConfirm={() => void handleDelete()}
-        />
-      )}
     </div>
   );
 }

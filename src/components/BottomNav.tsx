@@ -10,7 +10,7 @@ export default function BottomNav() {
   const isOwner = user?.role === 'owner';
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex flex-1 flex-col items-center gap-1 py-2 text-xs transition-colors ${
+    `flex flex-1 flex-col items-center gap-1 py-2 text-xs transition-[color,transform] active:scale-90 ${
       isActive ? 'text-lumina-pink-deep font-medium' : 'text-ink-soft'
     }`;
 

@@ -119,3 +119,68 @@
     background: white;
   }
 }
+
+/**
+ * 画面遷移アニメーション
+ * -----------------------------------------------------------------------
+ * ページが切り替わるたびに、右からふわっとスライドインする演出。
+ * App.tsx側で location.pathname をkeyにして、切り替わるたびに
+ * この animation が再生されるようにしている。
+ * -----------------------------------------------------------------------
+ */
+.page-transition {
+  animation: page-slide-in 0.22s ease-out;
+}
+
+@keyframes page-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 動きに敏感な人向けの配慮(OS側で「視差効果を減らす」設定をしている場合はアニメーションを無効化) */
+@media (prefers-reduced-motion: reduce) {
+  .page-transition {
+    animation: none;
+  }
+}
+
+/**
+ * スケルトン(読み込み中の骨組み表示)のパルスアニメーション
+ */
+.skeleton-pulse {
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/**
+ * トースト通知の登場アニメーション
+ */
+.toast-enter {
+  animation: toast-enter 0.2s ease-out;
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

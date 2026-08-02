@@ -1,30 +1,43 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { useTodayReservations } from '../hooks/useTodayReservations';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { sumTodayRevenue } from '../lib/reservations';
 import { formatCurrency, formatDateJP, todayDateString } from '../utils/format';
 import AppHeader from '../components/AppHeader';
 import BottomNav from '../components/BottomNav';
+import PullToRefreshIndicator from '../components/PullToRefreshIndicator';
 import ReservationListItem from '../components/ReservationListItem';
+import { ReservationListSkeleton, SummaryCardSkeleton } from '../components/Skeleton';
 
 /**
  * ホーム画面
  * -----------------------------------------------------------------------
  * ・今日の予約一覧(全ユーザー閲覧可)
  * ・今日の売上(オーナーのみ表示)
+ * ・オーナーのみ: 今日の予約をすぐ追加できる「+」フローティングボタン
+ * ・上から下に引っ張ると更新した手応え(プルリフレッシュ)が得られる
+ *   (データ自体はFirestoreのリアルタイム購読で既に自動更新されている)
  * -----------------------------------------------------------------------
  */
 export default function HomePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const { reservations, isLoading, errorMessage } = useTodayReservations();
+  const { pullDistance, isRefreshing, touchHandlers } = usePullToRefresh(() => {
+    showToast('最新の状態です');
+  });
 
   const isOwner = user?.role === 'owner';
   const todayRevenue = sumTodayRevenue(reservations);
 
   return (
-    <div className="min-h-dvh pb-24">
+    <div className="min-h-dvh pb-24" {...touchHandlers}>
       <AppHeader title="ホーム" />
+
+      <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
 
       <main className="px-5 -mt-2 space-y-5 pt-6">
         <p className="text-sm text-ink-soft">{formatDateJP(todayDateString())}</p>
@@ -32,13 +45,19 @@ export default function HomePage() {
         {/* オーナーのみ: 今日の売上 */}
         {isOwner && (
           <div className="glass-card p-5">
-            <p className="text-xs text-ink-soft mb-1">今日の売上</p>
-            <p
-              className="text-3xl text-ink"
-              style={{ fontFamily: 'var(--font-display)' }}
-            >
-              {formatCurrency(todayRevenue)}
-            </p>
+            {isLoading ? (
+              <SummaryCardSkeleton />
+            ) : (
+              <>
+                <p className="text-xs text-ink-soft mb-1">今日の売上</p>
+                <p
+                  className="text-3xl text-ink"
+                  style={{ fontFamily: 'var(--font-display)' }}
+                >
+                  {formatCurrency(todayRevenue)}
+                </p>
+              </>
+            )}
           </div>
         )}
 
@@ -49,9 +68,7 @@ export default function HomePage() {
             <span className="text-xs text-ink-soft">{reservations.length}件</span>
           </div>
 
-          {isLoading && (
-            <p className="text-sm text-ink-soft py-6 text-center">読み込み中…</p>
-          )}
+          {isLoading && <ReservationListSkeleton />}
 
           {errorMessage && (
             <p className="text-sm text-lumina-pink-deep py-6 text-center">
@@ -87,7 +104,8 @@ export default function HomePage() {
           aria-label="今日の予約を追加"
           className="fixed right-5 bottom-24 h-14 w-14 rounded-full brand-gradient text-white
                      text-3xl leading-none flex items-center justify-center
-                     shadow-lg shadow-lumina-wisteria/30 active:opacity-90 transition-opacity z-10"
+                     shadow-lg shadow-lumina-wisteria/30 transition-[opacity,transform]
+                     active:opacity-90 active:scale-90 z-10"
         >
           +
         </button>

@@ -1,5 +1,6 @@
-import { HashRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ToastProvider } from './contexts/ToastContext';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import CalendarPage from './pages/CalendarPage';
@@ -23,6 +24,7 @@ import OfflineBanner from './components/OfflineBanner';
  */
 function AppContent() {
   const { user, isLoading } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -40,22 +42,26 @@ function AppContent() {
   return (
     <>
       <OfflineBanner />
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/calendar" element={<CalendarPage />} />
-        <Route path="/search" element={<SearchPage />} />
-        <Route path="/reservations/:date" element={<ReservationListPage />} />
-        <Route path="/reservations/:date/new" element={<ReservationFormPage />} />
-        <Route path="/reservation/:id" element={<ReservationDetailPage />} />
-        <Route path="/reservation/:id/edit" element={<ReservationFormPage />} />
-        <Route path="/reservation/:id/pay" element={<AccountingPage />} />
-        <Route path="/reservation/:id/history" element={<ReservationHistoryPage />} />
-        <Route path="/revenue" element={<RevenuePage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/settings/password" element={<PasswordChangePage />} />
-        <Route path="/settings/backup" element={<BackupPage />} />
-        <Route path="/settings/trash" element={<TrashPage />} />
-      </Routes>
+      {/* location.pathnameをkeyにすることで、画面が切り替わるたびに
+          page-transitionアニメーションが再生される */}
+      <div key={location.pathname} className="page-transition">
+        <Routes location={location}>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/reservations/:date" element={<ReservationListPage />} />
+          <Route path="/reservations/:date/new" element={<ReservationFormPage />} />
+          <Route path="/reservation/:id" element={<ReservationDetailPage />} />
+          <Route path="/reservation/:id/edit" element={<ReservationFormPage />} />
+          <Route path="/reservation/:id/pay" element={<AccountingPage />} />
+          <Route path="/reservation/:id/history" element={<ReservationHistoryPage />} />
+          <Route path="/revenue" element={<RevenuePage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/password" element={<PasswordChangePage />} />
+          <Route path="/settings/backup" element={<BackupPage />} />
+          <Route path="/settings/trash" element={<TrashPage />} />
+        </Routes>
+      </div>
     </>
   );
 }
@@ -64,7 +70,9 @@ function App() {
   return (
     <HashRouter>
       <AuthProvider>
-        <AppContent />
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
       </AuthProvider>
     </HashRouter>
   );

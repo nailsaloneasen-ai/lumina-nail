@@ -18,7 +18,8 @@ export default function ReservationListItem({
       type="button"
       onClick={() => onClick?.(reservation)}
       className="w-full flex items-center gap-3 rounded-xl bg-white/70 px-4 py-3.5
-                 text-left transition-colors active:bg-lumina-blush/40"
+                 text-left transition-[background-color,transform] active:bg-lumina-blush/40
+                 active:scale-[0.98]"
     >
       {/* 時間帯 */}
       <div className="flex flex-col items-center shrink-0 w-14">

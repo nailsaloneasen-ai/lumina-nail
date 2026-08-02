@@ -5,6 +5,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import PhoneNumberInput from '../components/PhoneNumberInput';
 import CurrencyInput from '../components/CurrencyInput';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import {
   createReservation,
@@ -30,6 +31,7 @@ export default function ReservationFormPage() {
   const isEditMode = Boolean(idParam);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const isOnline = useOnlineStatus();
 
   const [date, setDate] = useState(dateParam ?? '');
@@ -144,10 +146,12 @@ export default function ReservationFormPage() {
       if (isEditMode && idParam) {
         await updateReservationDetails(idParam, input, user.uid);
         isDirtyRef.current = false;
+        showToast('保存しました');
         navigate(`/reservation/${idParam}`);
       } else {
         const newId = await createReservation(input, user.uid);
         isDirtyRef.current = false;
+        showToast('予約を登録しました');
         navigate(`/reservation/${newId}`);
       }
     } catch {
@@ -347,7 +351,7 @@ export default function ReservationFormPage() {
               disabled={isSaving || !isOnline}
               className="flex-1 brand-gradient rounded-xl py-3.5 text-white font-medium
                          shadow-lg shadow-lumina-wisteria/20 disabled:opacity-60
-                         transition-opacity active:opacity-90"
+                         transition-[opacity,transform] active:opacity-90 active:scale-95"
             >
               {isSaving ? '保存中…' : '保存'}
             </button>

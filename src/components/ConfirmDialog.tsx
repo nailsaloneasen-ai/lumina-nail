@@ -43,14 +43,15 @@ export default function ConfirmDialog({
             type="button"
             onClick={onCancel}
             className="flex-1 rounded-xl py-3 text-sm font-medium text-ink-soft
-                       border border-lumina-blush active:bg-lumina-blush/40 transition-colors"
+                       border border-lumina-blush transition-[background-color,transform]
+                       active:bg-lumina-blush/40 active:scale-95"
           >
             {cancelLabel}
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className={`flex-1 rounded-xl py-3 text-sm font-medium text-white transition-opacity active:opacity-90 ${
+            className={`flex-1 rounded-xl py-3 text-sm font-medium text-white transition-[opacity,transform] active:opacity-90 active:scale-95 ${
               danger ? 'bg-lumina-pink-deep' : 'brand-gradient'
             }`}
           >
