@@ -411,7 +411,7 @@ function PaymentMethodDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center
+      className="no-print fixed inset-0 z-50 flex items-end sm:items-center justify-center
                  bg-ink/30 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
@@ -491,7 +491,7 @@ function PointsDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center
+      className="no-print fixed inset-0 z-50 flex items-end sm:items-center justify-center
                  bg-ink/30 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
