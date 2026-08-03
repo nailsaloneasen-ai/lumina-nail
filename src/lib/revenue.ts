@@ -1,4 +1,4 @@
-import { toDateString, todayDateString } from '../utils/format';
+import { toDateString } from '../utils/format';
 import type { PaymentMethod, Reservation, RevenuePeriod, RevenueSummary } from '../types';
 
 /**
@@ -14,7 +14,7 @@ export function dateRangeForPeriod(
   baseDate: Date = new Date(),
 ): { start: string; end: string } {
   if (period === 'today') {
-    const today = todayDateString();
+    const today = toDateString(baseDate);
     return { start: today, end: today };
   }
 

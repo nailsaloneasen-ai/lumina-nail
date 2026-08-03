@@ -50,7 +50,7 @@ export default function RevenuePage() {
       ? { start: customStart, end: customEnd < customStart ? customStart : customEnd }
       : dateRangeForPeriod(period);
 
-  const { summary, unpaidReservations, reservations, isLoading, errorMessage } =
+  const { summary, unpaidReservations, reservations, isLoading, errorMessage, isPossiblyIncomplete } =
     useRevenueData(range.start, range.end);
 
   const periodLabel =
@@ -144,6 +144,13 @@ export default function RevenuePage() {
 
         {errorMessage && (
           <p className="text-sm text-lumina-pink-deep text-center">{errorMessage}</p>
+        )}
+
+        {isPossiblyIncomplete && (
+          <p className="text-xs text-lumina-pink-deep bg-lumina-cream rounded-lg px-3 py-2">
+            この期間はデータ件数が多いため、集計結果が一部のみになっている可能性があります。
+            期間を狭めて確認することをおすすめします。
+          </p>
         )}
 
         {/* 総売上 */}

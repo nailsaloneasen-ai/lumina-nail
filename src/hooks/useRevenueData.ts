@@ -10,6 +10,11 @@ interface UseRevenueDataResult {
   reservations: Reservation[];
   isLoading: boolean;
   errorMessage: string | null;
+  /**
+   * 取得件数が上限(REVENUE_QUERY_LIMIT)に達しており、集計結果が
+   * 実際より少なく表示されている可能性がある場合にtrue。
+   */
+  isPossiblyIncomplete: boolean;
 }
 
 const EMPTY_SUMMARY: RevenueSummary = {
@@ -21,6 +26,14 @@ const EMPTY_SUMMARY: RevenueSummary = {
   customerCount: 0,
   averageSpend: 0,
 };
+
+/**
+ * 売上集計の取得件数上限。
+ * 小規模なサロン1店舗であれば通常到達しない値だが、データが何年も蓄積された場合の
+ * 読み取り件数の際限ない増加(Firebase無料枠の消費)を防ぐための安全策として設定している。
+ * 達した場合は isPossiblyIncomplete が true になるので、画面側で期間を狭めるよう案内する。
+ */
+const REVENUE_QUERY_LIMIT = 3000;
 
 /**
  * 指定した日付範囲(start〜end、YYYY-MM-DD)の売上サマリーと未会計一覧を取得するフック。
@@ -44,6 +57,7 @@ export function useRevenueData(start: string, end: string): UseRevenueDataResult
         setIsLoading(false);
         setErrorMessage('売上データの取得に失敗しました。通信環境をご確認ください。');
       },
+      REVENUE_QUERY_LIMIT,
     );
 
     return unsubscribe;
@@ -55,5 +69,6 @@ export function useRevenueData(start: string, end: string): UseRevenueDataResult
     reservations,
     isLoading,
     errorMessage,
+    isPossiblyIncomplete: reservations.length >= REVENUE_QUERY_LIMIT,
   };
 }

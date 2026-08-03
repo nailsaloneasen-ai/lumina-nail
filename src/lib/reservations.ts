@@ -4,6 +4,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -73,20 +74,28 @@ export function sumTodayRevenue(reservations: Reservation[]): number {
 
 /**
  * 指定した期間(start〜end、YYYY-MM-DD)内の予約一覧をリアルタイム購読する。
- * カレンダー画面の月表示で使用する。
+ * カレンダー画面の月表示・週表示、および売上集計で使用する。
+ *
+ * @param maxResults 取得件数の上限(省略時は無制限)。売上集計など、
+ *   データが増えた場合に読み取り件数が際限なく増えるのを防ぐために使う。
+ *   カレンダー表示(月・週)は範囲が元々狭く実質問題にならないため、通常は省略でよい。
  */
 export function subscribeReservationsByDateRange(
   start: string,
   end: string,
   onData: (reservations: Reservation[]) => void,
   onError?: (error: Error) => void,
+  maxResults?: number,
 ): Unsubscribe {
-  const q = query(
-    reservationsCollectionRef(),
+  const constraints = [
     where('date', '>=', start),
     where('date', '<=', end),
     where('isDeleted', '==', false),
-  );
+  ];
+  const q =
+    maxResults !== undefined
+      ? query(reservationsCollectionRef(), ...constraints, limit(maxResults))
+      : query(reservationsCollectionRef(), ...constraints);
 
   return onSnapshot(
     q,
@@ -97,7 +106,7 @@ export function subscribeReservationsByDateRange(
       onData(reservations);
     },
     (error) => {
-      console.error('月間予約データの取得に失敗しました', error);
+      console.error('期間指定の予約データの取得に失敗しました', error);
       onError?.(error as Error);
     },
   );
@@ -300,6 +309,19 @@ export async function saveReservationPayment(
   await addDoc(paymentHistoryCollectionRef(reservationId), historyEntry);
 }
 
+/** 検索1回あたり、各クエリ(顧客名/読み仮名)ごとに取得する最大件数 */
+const SEARCH_QUERY_LIMIT = 50;
+
+export interface SearchReservationsResult {
+  reservations: Reservation[];
+  /**
+   * 顧客名・読み仮名いずれかのクエリが上限件数ちょうどヒットした場合にtrueになる。
+   * この場合、本来はもっと該当件数がある可能性があるため、
+   * 画面側で「検索文字を増やして絞り込んでください」等の案内に使う。
+   */
+  isPossiblyTruncated: boolean;
+}
+
 /**
  * 顧客名・読み仮名で予約を検索する(前方一致)。
  * Firestoreは全文検索に対応していないため、range検索(>=, <=)を使った
@@ -309,12 +331,15 @@ export async function saveReservationPayment(
  * 顧客名(customerName)と読み仮名(customerKana)の両方を対象に検索し、
  * 結果をマージして重複を除いたうえで、日付の新しい順に並べて返す。
  * 削除済み(ゴミ箱)の予約は検索対象外。
+ *
+ * データが増えた場合に検索が重くなりすぎないよう、各クエリにSEARCH_QUERY_LIMIT件の
+ * 上限を設けている。同姓同名などで上限に達した場合はisPossiblyTruncatedがtrueになる。
  */
 export async function searchReservationsByCustomerName(
   queryText: string,
-): Promise<Reservation[]> {
+): Promise<SearchReservationsResult> {
   const trimmed = queryText.trim();
-  if (!trimmed) return [];
+  if (!trimmed) return { reservations: [], isPossiblyTruncated: false };
 
   const upperBound = `${trimmed}\uf8ff`;
 
@@ -325,6 +350,7 @@ export async function searchReservationsByCustomerName(
         where('isDeleted', '==', false),
         where('customerName', '>=', trimmed),
         where('customerName', '<=', upperBound),
+        limit(SEARCH_QUERY_LIMIT),
       ),
     ),
     getDocs(
@@ -333,9 +359,13 @@ export async function searchReservationsByCustomerName(
         where('isDeleted', '==', false),
         where('customerKana', '>=', trimmed),
         where('customerKana', '<=', upperBound),
+        limit(SEARCH_QUERY_LIMIT),
       ),
     ),
   ]);
+
+  const isPossiblyTruncated =
+    byName.docs.length >= SEARCH_QUERY_LIMIT || byKana.docs.length >= SEARCH_QUERY_LIMIT;
 
   const resultMap = new Map<string, Reservation>();
   for (const docSnapshot of [...byName.docs, ...byKana.docs]) {
@@ -345,7 +375,9 @@ export async function searchReservationsByCustomerName(
     } as Reservation);
   }
 
-  return Array.from(resultMap.values()).sort((a, b) =>
+  const reservations = Array.from(resultMap.values()).sort((a, b) =>
     (b.date + b.startTime).localeCompare(a.date + a.startTime),
   );
+
+  return { reservations, isPossiblyTruncated };
 }

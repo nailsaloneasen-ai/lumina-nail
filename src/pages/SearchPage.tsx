@@ -18,6 +18,7 @@ export default function SearchPage() {
   const navigate = useNavigate();
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState<Reservation[] | null>(null);
+  const [isTruncated, setIsTruncated] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -31,8 +32,10 @@ export default function SearchPage() {
     setIsSearching(true);
     setErrorMessage(null);
     try {
-      const data = await searchReservationsByCustomerName(keyword);
-      setResults(data);
+      const { reservations, isPossiblyTruncated } =
+        await searchReservationsByCustomerName(keyword);
+      setResults(reservations);
+      setIsTruncated(isPossiblyTruncated);
     } catch {
       setErrorMessage('検索に失敗しました。通信環境をご確認ください。');
     } finally {
@@ -85,19 +88,26 @@ export default function SearchPage() {
                 該当する予約が見つかりませんでした
               </p>
             ) : (
-              <div className="space-y-3">
-                {results.map((reservation) => (
-                  <div key={reservation.id}>
-                    <p className="text-[11px] text-ink-soft mb-1 px-1">
-                      {formatDateJP(reservation.date)}
-                    </p>
-                    <ReservationListItem
-                      reservation={reservation}
-                      onClick={(r) => navigate(`/reservation/${r.id}`)}
-                    />
-                  </div>
-                ))}
-              </div>
+              <>
+                {isTruncated && (
+                  <p className="text-xs text-lumina-pink-deep bg-lumina-cream rounded-lg px-3 py-2 mb-3">
+                    該当件数が多いため、一部のみ表示しています。文字数を増やして絞り込んでください。
+                  </p>
+                )}
+                <div className="space-y-3">
+                  {results.map((reservation) => (
+                    <div key={reservation.id}>
+                      <p className="text-[11px] text-ink-soft mb-1 px-1">
+                        {formatDateJP(reservation.date)}
+                      </p>
+                      <ReservationListItem
+                        reservation={reservation}
+                        onClick={(r) => navigate(`/reservation/${r.id}`)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         )}
