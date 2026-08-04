@@ -47,6 +47,9 @@ export interface Reservation {
   priceAmount: number;
   memo: string;
 
+  /** 指名(お客様が特定のスタッフを指名したかどうか) */
+  isNominated: boolean;
+
   // --- 会計情報 ---
   payment: PaymentInfo | null;
   isPaid: boolean;
@@ -101,7 +104,7 @@ export interface DayAggregate {
   isToday: boolean;
 }
 
-/** 売上集計(期間指定: 今日 / 今月 / 年) */
+/** 売上集計(期間指定: 今日 / 週 / 今月 / 年 / 期間指定) */
 export interface RevenueSummary {
   totalRevenue: number;
   cashRevenue: number;
@@ -112,7 +115,17 @@ export interface RevenueSummary {
   averageSpend: number;
 }
 
-export type RevenuePeriod = 'today' | 'month' | 'year' | 'custom';
+/** 指名の有無別の集計(客数・売上・指名率) */
+export interface NominationSummary {
+  nominatedCount: number;
+  nominatedRevenue: number;
+  notNominatedCount: number;
+  notNominatedRevenue: number;
+  /** 指名率(0〜100の数値、%表示用)。客数が0件の場合は0。 */
+  nominationRate: number;
+}
+
+export type RevenuePeriod = 'today' | 'week' | 'month' | 'year' | 'custom';
 
 /** バックアップ(JSONエクスポート/インポート)のペイロード形状 */
 export interface BackupPayload {

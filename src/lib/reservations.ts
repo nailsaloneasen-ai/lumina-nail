@@ -175,6 +175,7 @@ export interface ReservationInput {
   endTime: string;
   priceAmount: number;
   memo: string;
+  isNominated: boolean;
 }
 
 /** 新規予約をFirestoreに作成する */

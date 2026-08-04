@@ -172,6 +172,8 @@ export default function ReservationDetailPage() {
             large
           />
 
+          <DetailRow label="指名" value={reservation.isNominated ? 'あり' : 'なし'} />
+
           {/* 支払い方法・ポイント利用(会計済みの場合のみ表示) */}
           {reservation.payment && (
             <>

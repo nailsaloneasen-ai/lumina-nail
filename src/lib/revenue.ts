@@ -1,5 +1,11 @@
 import { toDateString } from '../utils/format';
-import type { PaymentMethod, Reservation, RevenuePeriod, RevenueSummary } from '../types';
+import type {
+  NominationSummary,
+  PaymentMethod,
+  Reservation,
+  RevenuePeriod,
+  RevenueSummary,
+} from '../types';
 
 /**
  * 売上集計まわりのロジック
@@ -8,7 +14,7 @@ import type { PaymentMethod, Reservation, RevenuePeriod, RevenueSummary } from '
  * -----------------------------------------------------------------------
  */
 
-/** 指定した期間種別(今日/今月/年)に対応する日付範囲(YYYY-MM-DD)を計算する */
+/** 指定した期間種別(今日/週/今月/年)に対応する日付範囲(YYYY-MM-DD)を計算する */
 export function dateRangeForPeriod(
   period: RevenuePeriod,
   baseDate: Date = new Date(),
@@ -16,6 +22,15 @@ export function dateRangeForPeriod(
   if (period === 'today') {
     const today = toDateString(baseDate);
     return { start: today, end: today };
+  }
+
+  if (period === 'week') {
+    // 日曜始まり〜土曜終わりの週(カレンダー画面の週表示と揃えている)
+    const startOfWeek = new Date(baseDate);
+    startOfWeek.setDate(baseDate.getDate() - baseDate.getDay());
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    return { start: toDateString(startOfWeek), end: toDateString(endOfWeek) };
   }
 
   if (period === 'month') {
@@ -105,6 +120,63 @@ export function filterPointsUsage(reservations: Reservation[]): Reservation[] {
     .filter(
       (r) =>
         r.isPaid && r.payment && r.payment.isRevenueTarget && r.payment.pointsUsed > 0,
+    )
+    .sort((a, b) => (b.date + b.startTime).localeCompare(a.date + a.startTime));
+}
+
+/**
+ * 予約一覧から、指名の有無別に客数・売上・指名率を集計する。
+ * 集計対象は summarizeRevenue と同じく「会計済み・売上対象」の予約のみ。
+ */
+export function summarizeNomination(reservations: Reservation[]): NominationSummary {
+  const targetReservations = reservations.filter(
+    (r) => r.isPaid && r.payment && r.payment.isRevenueTarget,
+  );
+
+  let nominatedCount = 0;
+  let nominatedRevenue = 0;
+  let notNominatedCount = 0;
+  let notNominatedRevenue = 0;
+
+  for (const reservation of targetReservations) {
+    const amount = reservation.payment!.paidAmount;
+    if (reservation.isNominated) {
+      nominatedCount += 1;
+      nominatedRevenue += amount;
+    } else {
+      notNominatedCount += 1;
+      notNominatedRevenue += amount;
+    }
+  }
+
+  const totalCount = nominatedCount + notNominatedCount;
+  const nominationRate =
+    totalCount > 0 ? Math.round((nominatedCount / totalCount) * 100) : 0;
+
+  return {
+    nominatedCount,
+    nominatedRevenue,
+    notNominatedCount,
+    notNominatedRevenue,
+    nominationRate,
+  };
+}
+
+/**
+ * 予約一覧から、指名の有無で絞り込んだ予約一覧を抽出する(会計済み・売上対象のみ)。
+ * 売上画面で指名件数をタップした際の内訳表示に使用する。日付の新しい順に並べる。
+ */
+export function filterByNomination(
+  reservations: Reservation[],
+  isNominated: boolean,
+): Reservation[] {
+  return reservations
+    .filter(
+      (r) =>
+        r.isPaid &&
+        r.payment &&
+        r.payment.isRevenueTarget &&
+        r.isNominated === isNominated,
     )
     .sort((a, b) => (b.date + b.startTime).localeCompare(a.date + a.startTime));
 }

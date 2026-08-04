@@ -41,6 +41,7 @@ export default function ReservationFormPage() {
   const [customerKana, setCustomerKana] = useState('');
   const [phoneDigits, setPhoneDigits] = useState('');
   const [priceAmount, setPriceAmount] = useState(0);
+  const [isNominated, setIsNominated] = useState(false);
   const [memo, setMemo] = useState('');
 
   const [isInitialLoading, setIsInitialLoading] = useState(isEditMode);
@@ -63,6 +64,7 @@ export default function ReservationFormPage() {
       setCustomerKana(reservation.customerKana);
       setPhoneDigits(reservation.phoneNumber.replace(/\D/g, ''));
       setPriceAmount(reservation.priceAmount);
+      setIsNominated(reservation.isNominated);
       setMemo(reservation.memo);
       setIsInitialLoading(false);
     });
@@ -96,6 +98,7 @@ export default function ReservationFormPage() {
     customerKana,
     phoneDigits,
     priceAmount,
+    isNominated,
     memo,
   ]);
 
@@ -138,6 +141,7 @@ export default function ReservationFormPage() {
       durationMinutes,
       endTime,
       priceAmount,
+      isNominated,
       memo,
     };
 
@@ -310,6 +314,27 @@ export default function ReservationFormPage() {
             value={priceAmount}
             onChange={setPriceAmount}
           />
+
+          {/* 指名の有無 */}
+          <button
+            type="button"
+            onClick={() => setIsNominated((current) => !current)}
+            className="w-full flex items-center justify-between rounded-xl bg-white/70 px-4 py-3
+                       border border-lumina-blush"
+          >
+            <span className="text-sm text-ink">指名</span>
+            <span
+              className={`h-6 w-11 rounded-full relative transition-colors ${
+                isNominated ? 'brand-gradient' : 'bg-lumina-blush'
+              }`}
+            >
+              <span
+                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                  isNominated ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </span>
+          </button>
 
           {/* メモ */}
           <div>

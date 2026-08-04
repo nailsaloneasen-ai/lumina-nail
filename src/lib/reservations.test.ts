@@ -14,6 +14,7 @@ function makeReservation(overrides: Partial<Reservation>): Reservation {
     endTime: '11:00',
     priceAmount: 8000,
     memo: '',
+    isNominated: false,
     payment: null,
     isPaid: false,
     isDeleted: false,

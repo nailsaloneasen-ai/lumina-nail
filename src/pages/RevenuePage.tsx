@@ -7,12 +7,20 @@ import { useAuth } from '../contexts/AuthContext';
 import { useRevenueData } from '../hooks/useRevenueData';
 import {
   dateRangeForPeriod,
+  filterByNomination,
   filterPaidByMethod,
   filterPointsUsage,
+  summarizeNomination,
 } from '../lib/revenue';
 import { downloadCsvFile, generateRevenueCsv } from '../lib/csvExport';
 import { formatCurrency, formatDateJP, todayDateString } from '../utils/format';
-import type { PaymentMethod, Reservation, RevenuePeriod, RevenueSummary } from '../types';
+import type {
+  NominationSummary,
+  PaymentMethod,
+  Reservation,
+  RevenuePeriod,
+  RevenueSummary,
+} from '../types';
 
 const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: '現金',
@@ -22,6 +30,7 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 
 const PERIOD_LABELS: Record<RevenuePeriod, string> = {
   today: '今日',
+  week: '週',
   month: '今月',
   year: '年',
   custom: '期間指定',
@@ -42,6 +51,7 @@ export default function RevenuePage() {
   const [customEnd, setCustomEnd] = useState(todayDateString());
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [showPointsDetail, setShowPointsDetail] = useState(false);
+  const [selectedNomination, setSelectedNomination] = useState<boolean | null>(null);
 
   // 期間指定(custom)の場合はカスタム日付を、それ以外はプリセット期間から範囲を計算する。
   // 終了日が開始日より前になっていたら、開始日と同じ日にそろえる(安全策)。
@@ -50,13 +60,21 @@ export default function RevenuePage() {
       ? { start: customStart, end: customEnd < customStart ? customStart : customEnd }
       : dateRangeForPeriod(period);
 
-  const { summary, unpaidReservations, reservations, isLoading, errorMessage, isPossiblyIncomplete } =
-    useRevenueData(range.start, range.end);
+  const {
+    summary,
+    unpaidReservations,
+    reservations,
+    isLoading,
+    errorMessage,
+    isPossiblyIncomplete,
+  } = useRevenueData(range.start, range.end);
 
   const periodLabel =
     period === 'custom'
       ? `${formatShortDate(range.start)}〜${formatShortDate(range.end)}`
       : PERIOD_LABELS[period];
+
+  const nomination = summarizeNomination(reservations);
 
   function handleExportCsv() {
     const csv = generateRevenueCsv(reservations);
@@ -191,6 +209,31 @@ export default function RevenuePage() {
           <SummaryItem label="平均客単価" value={formatCurrency(summary.averageSpend)} />
         </div>
 
+        {/* 指名統計 */}
+        <div className="glass-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-medium text-ink">指名({periodLabel})</p>
+            <p
+              className="text-2xl text-lumina-wisteria"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              {nomination.nominationRate}%
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-center">
+            <SummaryItem
+              label={`指名あり(${nomination.nominatedCount}人)`}
+              value={formatCurrency(nomination.nominatedRevenue)}
+              onClick={() => setSelectedNomination(true)}
+            />
+            <SummaryItem
+              label={`指名なし(${nomination.notNominatedCount}人)`}
+              value={formatCurrency(nomination.notNominatedRevenue)}
+              onClick={() => setSelectedNomination(false)}
+            />
+          </div>
+        </div>
+
         {/* データ出力(CSV/PDF) */}
         <div className="no-print flex gap-3">
           <button
@@ -261,10 +304,21 @@ export default function RevenuePage() {
         />
       )}
 
+      {selectedNomination !== null && (
+        <NominationDetailModal
+          isNominated={selectedNomination}
+          periodLabel={periodLabel}
+          entries={filterByNomination(reservations, selectedNomination)}
+          onClose={() => setSelectedNomination(null)}
+          onSelectReservation={(id) => navigate(`/reservation/${id}`)}
+        />
+      )}
+
       {/* 印刷(PDF出力)専用のレポート。画面上には表示されず、印刷時にのみ表示される */}
       <PrintableRevenueReport
         periodLabel={periodLabel}
         summary={summary}
+        nomination={nomination}
         reservations={reservations}
       />
 
@@ -282,10 +336,12 @@ export default function RevenuePage() {
 function PrintableRevenueReport({
   periodLabel,
   summary,
+  nomination,
   reservations,
 }: {
   periodLabel: string;
   summary: RevenueSummary;
+  nomination: NominationSummary;
   reservations: Reservation[];
 }) {
   const targetReservations = reservations
@@ -315,6 +371,10 @@ function PrintableRevenueReport({
             label="平均客単価"
             value={formatCurrency(summary.averageSpend)}
           />
+          <PrintSummaryRow
+            label="指名率"
+            value={`${nomination.nominationRate}%(指名あり${nomination.nominatedCount}人 / 指名なし${nomination.notNominatedCount}人)`}
+          />
         </tbody>
       </table>
 
@@ -326,7 +386,8 @@ function PrintableRevenueReport({
             <th className="text-right py-1 pr-2">施術金額</th>
             <th className="text-right py-1 pr-2">ポイント</th>
             <th className="text-right py-1 pr-2">支払金額</th>
-            <th className="text-left py-1">方法</th>
+            <th className="text-left py-1 pr-2">方法</th>
+            <th className="text-left py-1">指名</th>
           </tr>
         </thead>
         <tbody>
@@ -341,7 +402,8 @@ function PrintableRevenueReport({
               <td className="text-right py-1 pr-2">
                 {formatCurrency(r.payment!.paidAmount)}
               </td>
-              <td className="py-1">{PAYMENT_METHOD_LABELS[r.payment!.method]}</td>
+              <td className="py-1 pr-2">{PAYMENT_METHOD_LABELS[r.payment!.method]}</td>
+              <td className="py-1">{r.isNominated ? 'あり' : ''}</td>
             </tr>
           ))}
         </tbody>
@@ -547,6 +609,88 @@ function PointsDetailModal({
                 </div>
                 <p className="shrink-0 text-sm font-medium text-ink">
                   {(reservation.payment?.pointsUsed ?? 0).toLocaleString('ja-JP')}pt
+                </p>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 指名の有無の内訳詳細モーダル。
+ * 「指名あり」「指名なし」をタップすると、該当する予約(誰がいつ)を一覧表示する。
+ */
+function NominationDetailModal({
+  isNominated,
+  periodLabel,
+  entries,
+  onClose,
+  onSelectReservation,
+}: {
+  isNominated: boolean;
+  periodLabel: string;
+  entries: ReturnType<typeof filterByNomination>;
+  onClose: () => void;
+  onSelectReservation: (id: string) => void;
+}) {
+  const total = entries.reduce((sum, r) => sum + (r.payment?.paidAmount ?? 0), 0);
+
+  return (
+    <div
+      className="no-print fixed inset-0 z-50 flex items-end sm:items-center justify-center
+                 bg-ink/30 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="glass-card w-full max-w-sm bg-white/95 max-h-[80vh] flex flex-col">
+        <div className="p-5 pb-3 flex items-center justify-between shrink-0">
+          <div>
+            <p className="text-xs text-ink-soft">
+              {periodLabel} ・ 指名{isNominated ? 'あり' : 'なし'}の内訳
+            </p>
+            <p className="text-xl text-ink" style={{ fontFamily: 'var(--font-display)' }}>
+              {formatCurrency(total)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="閉じる"
+            className="h-8 w-8 flex items-center justify-center rounded-full text-ink-soft
+                       active:bg-lumina-blush/40"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="px-5 pb-5 overflow-y-auto space-y-2">
+          {entries.length === 0 ? (
+            <p className="text-sm text-ink-soft text-center py-6">
+              この期間、該当する予約はありません
+            </p>
+          ) : (
+            entries.map((reservation) => (
+              <button
+                key={reservation.id}
+                type="button"
+                onClick={() => onSelectReservation(reservation.id)}
+                className="w-full flex items-center justify-between gap-3 rounded-xl
+                           bg-white/70 px-4 py-3 text-left active:bg-lumina-blush/40 transition-colors"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-ink truncate">
+                    {reservation.customerName}
+                  </p>
+                  <p className="text-xs text-ink-soft truncate">
+                    {formatDateJP(reservation.date)}
+                    {reservation.startTime && ` ${reservation.startTime}`}
+                  </p>
+                </div>
+                <p className="shrink-0 text-sm font-medium text-ink">
+                  {formatCurrency(reservation.payment?.paidAmount ?? 0)}
                 </p>
               </button>
             ))

@@ -37,6 +37,7 @@ export function generateRevenueCsv(reservations: Reservation[]): string {
     'ポイント利用',
     '支払金額',
     '支払い方法',
+    '指名',
   ]);
 
   const rows = targetReservations.map((r) => {
@@ -48,6 +49,7 @@ export function generateRevenueCsv(reservations: Reservation[]): string {
       payment.pointsUsed,
       payment.paidAmount,
       PAYMENT_METHOD_LABELS[payment.method],
+      r.isNominated ? 'あり' : 'なし',
     ]);
   });
 

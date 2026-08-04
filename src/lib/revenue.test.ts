@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   dateRangeForPeriod,
+  filterByNomination,
   filterPaidByMethod,
   filterPointsUsage,
   filterUnpaidReservations,
+  summarizeNomination,
   summarizeRevenue,
 } from './revenue';
 import type { Reservation } from '../types';
@@ -24,6 +26,7 @@ function makeReservation(overrides: Partial<Reservation>): Reservation {
     endTime: '11:00',
     priceAmount: 8000,
     memo: '',
+    isNominated: false,
     payment: null,
     isPaid: false,
     isDeleted: false,
@@ -157,9 +160,24 @@ describe('summarizeRevenue', () => {
 describe('filterUnpaidReservations', () => {
   it('未会計の予約だけを、日時の早い順に抽出する', () => {
     const reservations = [
-      makeReservation({ id: 'late', date: '2026-07-30', startTime: '15:00', isPaid: false }),
-      makeReservation({ id: 'paid', date: '2026-07-29', startTime: '09:00', isPaid: true }),
-      makeReservation({ id: 'early', date: '2026-07-29', startTime: '09:00', isPaid: false }),
+      makeReservation({
+        id: 'late',
+        date: '2026-07-30',
+        startTime: '15:00',
+        isPaid: false,
+      }),
+      makeReservation({
+        id: 'paid',
+        date: '2026-07-29',
+        startTime: '09:00',
+        isPaid: true,
+      }),
+      makeReservation({
+        id: 'early',
+        date: '2026-07-29',
+        startTime: '09:00',
+        isPaid: false,
+      }),
     ];
 
     const result = filterUnpaidReservations(reservations);
@@ -284,5 +302,130 @@ describe('dateRangeForPeriod', () => {
       start: '2026-01-01',
       end: '2026-12-31',
     });
+  });
+
+  it('weekは指定日を含む週(日曜〜土曜)になる', () => {
+    const base = new Date(2026, 6, 30); // 2026-07-30(木)
+    expect(dateRangeForPeriod('week', base)).toEqual({
+      start: '2026-07-26', // 日曜
+      end: '2026-08-01', // 土曜(翌月にまたぐ)
+    });
+  });
+});
+
+describe('summarizeNomination', () => {
+  it('指名の有無ごとに客数・売上・指名率を集計する', () => {
+    const reservations = [
+      makeReservation({
+        id: '1',
+        isPaid: true,
+        isNominated: true,
+        payment: {
+          pointsUsed: 0,
+          paidAmount: 8000,
+          method: 'cash',
+          isRevenueTarget: true,
+          paidAt: '',
+          paidBy: '',
+        },
+      }),
+      makeReservation({
+        id: '2',
+        isPaid: true,
+        isNominated: true,
+        payment: {
+          pointsUsed: 0,
+          paidAmount: 6000,
+          method: 'card',
+          isRevenueTarget: true,
+          paidAt: '',
+          paidBy: '',
+        },
+      }),
+      makeReservation({
+        id: '3',
+        isPaid: true,
+        isNominated: false,
+        payment: {
+          pointsUsed: 0,
+          paidAmount: 5000,
+          method: 'cash',
+          isRevenueTarget: true,
+          paidAt: '',
+          paidBy: '',
+        },
+      }),
+      // 未会計 → 集計対象外
+      makeReservation({ id: '4', isPaid: false, isNominated: true, payment: null }),
+    ];
+
+    const result = summarizeNomination(reservations);
+
+    expect(result.nominatedCount).toBe(2);
+    expect(result.nominatedRevenue).toBe(14000);
+    expect(result.notNominatedCount).toBe(1);
+    expect(result.notNominatedRevenue).toBe(5000);
+    // 指名率 = 2 / (2+1) = 66.66...% → 四捨五入で67%
+    expect(result.nominationRate).toBe(67);
+  });
+
+  it('該当する予約が1件もない場合は指名率0%になる', () => {
+    const result = summarizeNomination([]);
+    expect(result.nominationRate).toBe(0);
+    expect(result.nominatedCount).toBe(0);
+    expect(result.notNominatedCount).toBe(0);
+  });
+});
+
+describe('filterByNomination', () => {
+  it('指名ありの予約だけを、日付の新しい順に抽出する', () => {
+    const reservations = [
+      makeReservation({
+        id: 'nominated-old',
+        date: '2026-07-01',
+        isPaid: true,
+        isNominated: true,
+        payment: {
+          pointsUsed: 0,
+          paidAmount: 1000,
+          method: 'cash',
+          isRevenueTarget: true,
+          paidAt: '',
+          paidBy: '',
+        },
+      }),
+      makeReservation({
+        id: 'nominated-new',
+        date: '2026-07-15',
+        isPaid: true,
+        isNominated: true,
+        payment: {
+          pointsUsed: 0,
+          paidAmount: 2000,
+          method: 'cash',
+          isRevenueTarget: true,
+          paidAt: '',
+          paidBy: '',
+        },
+      }),
+      makeReservation({
+        id: 'not-nominated',
+        date: '2026-07-10',
+        isPaid: true,
+        isNominated: false,
+        payment: {
+          pointsUsed: 0,
+          paidAmount: 3000,
+          method: 'cash',
+          isRevenueTarget: true,
+          paidAt: '',
+          paidBy: '',
+        },
+      }),
+    ];
+
+    const result = filterByNomination(reservations, true);
+
+    expect(result.map((r) => r.id)).toEqual(['nominated-new', 'nominated-old']);
   });
 });

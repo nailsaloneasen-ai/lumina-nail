@@ -70,10 +70,7 @@ function AppContent() {
             <Route path="/reservation/:id" element={<ReservationDetailPage />} />
             <Route path="/reservation/:id/edit" element={<ReservationFormPage />} />
             <Route path="/reservation/:id/pay" element={<AccountingPage />} />
-            <Route
-              path="/reservation/:id/history"
-              element={<ReservationHistoryPage />}
-            />
+            <Route path="/reservation/:id/history" element={<ReservationHistoryPage />} />
             <Route path="/revenue" element={<RevenuePage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/settings/password" element={<PasswordChangePage />} />
