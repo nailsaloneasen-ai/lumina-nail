@@ -224,6 +224,23 @@ export async function updateReservationMemo(
   });
 }
 
+/**
+ * 指名の有無のみを更新する(オーナーが予約詳細画面から直接切り替える場合に使用)。
+ * 「指名」機能の追加より前に作成された予約(isNominatedフィールド自体が
+ * 存在しないもの)にも、この関数で後から指名の有無を設定できる。
+ */
+export async function updateReservationNomination(
+  id: string,
+  isNominated: boolean,
+  uid: string,
+): Promise<void> {
+  await updateDoc(doc(db, RESERVATIONS_COLLECTION, id), {
+    isNominated,
+    updatedAt: new Date().toISOString(),
+    updatedBy: uid,
+  });
+}
+
 /** 予約を論理削除する(ゴミ箱へ移動。30日後に自動削除・復元可能) */
 export async function softDeleteReservation(id: string, uid: string): Promise<void> {
   await updateDoc(doc(db, RESERVATIONS_COLLECTION, id), {

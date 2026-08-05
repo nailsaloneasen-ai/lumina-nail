@@ -64,7 +64,9 @@ export default function ReservationFormPage() {
       setCustomerKana(reservation.customerKana);
       setPhoneDigits(reservation.phoneNumber.replace(/\D/g, ''));
       setPriceAmount(reservation.priceAmount);
-      setIsNominated(reservation.isNominated);
+      // 今回の機能追加より前に作成された予約にはisNominatedフィールド自体が
+      // 存在しないため(Firestore上はundefined)、falseにフォールバックする
+      setIsNominated(reservation.isNominated ?? false);
       setMemo(reservation.memo);
       setIsInitialLoading(false);
     });

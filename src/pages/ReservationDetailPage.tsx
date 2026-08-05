@@ -6,7 +6,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useReservation } from '../hooks/useReservation';
-import { softDeleteReservation, updateReservationMemo } from '../lib/reservations';
+import {
+  softDeleteReservation,
+  updateReservationMemo,
+  updateReservationNomination,
+} from '../lib/reservations';
 import { restoreReservation } from '../lib/trash';
 import { formatCurrency, formatDateJP, formatPhoneNumber } from '../utils/format';
 import type { PaymentMethod } from '../types';
@@ -43,6 +47,7 @@ export default function ReservationDetailPage() {
   const [isEditingMemo, setIsEditingMemo] = useState(false);
   const [memoDraft, setMemoDraft] = useState('');
   const [isSavingMemo, setIsSavingMemo] = useState(false);
+  const [isSavingNomination, setIsSavingNomination] = useState(false);
 
   const isOwner = user?.role === 'owner';
 
@@ -117,6 +122,20 @@ export default function ReservationDetailPage() {
     }
   }
 
+  async function toggleNomination() {
+    if (!user || !id || !reservation) return;
+    const nextValue = !reservation.isNominated;
+    setIsSavingNomination(true);
+    try {
+      await updateReservationNomination(id, nextValue, user.uid);
+      showToast(nextValue ? '指名ありに変更しました' : '指名なしに変更しました');
+    } catch {
+      showToast('指名の変更に失敗しました');
+    } finally {
+      setIsSavingNomination(false);
+    }
+  }
+
   return (
     <div className="min-h-dvh pb-16">
       <AppHeader title="予約詳細" />
@@ -172,7 +191,34 @@ export default function ReservationDetailPage() {
             large
           />
 
-          <DetailRow label="指名" value={reservation.isNominated ? 'あり' : 'なし'} />
+          {isOwner ? (
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-ink-soft">指名</p>
+              <button
+                type="button"
+                disabled={isSavingNomination || !isOnline}
+                onClick={() => void toggleNomination()}
+                className="flex items-center gap-2 disabled:opacity-50"
+              >
+                <span className="text-sm text-ink">
+                  {reservation.isNominated ? 'あり' : 'なし'}
+                </span>
+                <span
+                  className={`h-6 w-11 rounded-full relative transition-colors ${
+                    reservation.isNominated ? 'brand-gradient' : 'bg-lumina-blush'
+                  }`}
+                >
+                  <span
+                    className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                      reservation.isNominated ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </span>
+              </button>
+            </div>
+          ) : (
+            <DetailRow label="指名" value={reservation.isNominated ? 'あり' : 'なし'} />
+          )}
 
           {/* 支払い方法・ポイント利用(会計済みの場合のみ表示) */}
           {reservation.payment && (
