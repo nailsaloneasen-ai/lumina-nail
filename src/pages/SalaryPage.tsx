@@ -5,7 +5,7 @@ import BottomNav from '../components/BottomNav';
 import { useAuth } from '../contexts/AuthContext';
 import { useRevenueData } from '../hooks/useRevenueData';
 import { calculateStaffSalary, dateRangeForPeriod } from '../lib/revenue';
-import { formatCurrency } from '../utils/format';
+import { formatCurrency, formatDateJP } from '../utils/format';
 import type { RevenuePeriod } from '../types';
 
 /** 給与計算画面で使う期間。売上画面と異なり「期間指定(custom)」は含まない */
@@ -14,15 +14,48 @@ type SalaryPeriod = Exclude<RevenuePeriod, 'custom'>;
 const PERIOD_LABELS: Record<SalaryPeriod, string> = {
   today: '今日',
   week: '週',
-  month: '今月',
+  month: '月',
   year: '年',
 };
+
+/** 前後移動ボタンを押したときに、期間の種類に応じてbaseDateをどれだけずらすかを決める */
+function shiftBaseDate(period: SalaryPeriod, baseDate: Date, direction: 1 | -1): Date {
+  const next = new Date(baseDate);
+  if (period === 'today') {
+    next.setDate(next.getDate() + direction);
+  } else if (period === 'week') {
+    next.setDate(next.getDate() + direction * 7);
+  } else if (period === 'month') {
+    next.setMonth(next.getMonth() + direction);
+  } else {
+    next.setFullYear(next.getFullYear() + direction);
+  }
+  return next;
+}
+
+/** 画面上部に出す、今見ている期間が具体的にいつなのかのラベル(実際の年月・日付・週の範囲) */
+function periodLabel(
+  period: SalaryPeriod,
+  baseDate: Date,
+  range: { start: string; end: string },
+): string {
+  if (period === 'today') return formatDateJP(range.start);
+  if (period === 'week') return `${formatShortDate(range.start)}〜${formatShortDate(range.end)}`;
+  if (period === 'month') return `${baseDate.getFullYear()}年${baseDate.getMonth() + 1}月`;
+  return `${baseDate.getFullYear()}年`;
+}
+
+/** YYYY-MM-DD形式の日付を「7/1」のような短い表記に変換する(週表示の見出し用) */
+function formatShortDate(dateString: string): string {
+  const [, month, day] = dateString.split('-').map(Number);
+  return `${month}/${day}`;
+}
 
 /**
  * 給与計算画面(オーナー専用)
  * -----------------------------------------------------------------------
- * 期間(今日/週/今月/年)を切り替えて、その期間の売上をもとに従業員の給与を
- * 自動計算する。
+ * 期間(今日/週/月/年)を切り替え、さらに「‹ ›」で前後の期間(先月・先々月など)
+ * に移動して、その期間の売上をもとに従業員の給与を自動計算する。
  *
  * 計算方法:
  * 1. 売上(施術金額ベース)を半分にする
@@ -35,14 +68,33 @@ export default function SalaryPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [period, setPeriod] = useState<SalaryPeriod>('month');
+  const [baseDate, setBaseDate] = useState<Date>(() => new Date());
 
-  const range = dateRangeForPeriod(period);
+  const range = dateRangeForPeriod(period, baseDate);
+  const currentRange = dateRangeForPeriod(period, new Date());
+  // 現在の期間(今月・今週・今日・今年)を超えて未来には進めないようにする
+  const isAtCurrentPeriod = range.end >= currentRange.end;
+
   const { reservations, isLoading, errorMessage, isPossiblyIncomplete } = useRevenueData(
     range.start,
     range.end,
   );
 
   const salary = calculateStaffSalary(reservations);
+
+  function handlePeriodChange(newPeriod: SalaryPeriod) {
+    setPeriod(newPeriod);
+    setBaseDate(new Date());
+  }
+
+  function handlePrev() {
+    setBaseDate((current) => shiftBaseDate(period, current, -1));
+  }
+
+  function handleNext() {
+    if (isAtCurrentPeriod) return;
+    setBaseDate((current) => shiftBaseDate(period, current, 1));
+  }
 
   // 従業員がURLを直接開いた場合の防御(ナビゲーション上は従業員に表示されない)
   if (user?.role !== 'owner') {
@@ -65,13 +117,13 @@ export default function SalaryPage() {
       <AppHeader title="給与計算" />
 
       <main className="px-5 -mt-2 pt-6 space-y-5">
-        {/* 期間切り替え */}
+        {/* 期間の種類切り替え(今日/週/月/年) */}
         <div className="glass-card p-1.5 flex gap-1">
           {(Object.keys(PERIOD_LABELS) as SalaryPeriod[]).map((key) => (
             <button
               key={key}
               type="button"
-              onClick={() => setPeriod(key)}
+              onClick={() => handlePeriodChange(key)}
               className={`flex-1 rounded-xl py-2.5 text-xs sm:text-sm font-medium transition-colors ${
                 period === key
                   ? 'brand-gradient text-white'
@@ -81,6 +133,35 @@ export default function SalaryPage() {
               {PERIOD_LABELS[key]}
             </button>
           ))}
+        </div>
+
+        {/* 前後の期間への移動(先月・先々月などを見る) */}
+        <div className="glass-card p-3 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={handlePrev}
+            aria-label="前の期間"
+            className="h-9 w-9 shrink-0 flex items-center justify-center rounded-full
+                       text-lumina-wisteria active:bg-lumina-blush/40 transition-colors"
+          >
+            ‹
+          </button>
+          <p className="text-sm font-medium text-ink text-center">
+            {periodLabel(period, baseDate, range)}
+          </p>
+          <button
+            type="button"
+            onClick={handleNext}
+            disabled={isAtCurrentPeriod}
+            aria-label="次の期間"
+            className={`h-9 w-9 shrink-0 flex items-center justify-center rounded-full transition-colors ${
+              isAtCurrentPeriod
+                ? 'text-ink-soft/30'
+                : 'text-lumina-wisteria active:bg-lumina-blush/40'
+            }`}
+          >
+            ›
+          </button>
         </div>
 
         {errorMessage && (
@@ -102,7 +183,9 @@ export default function SalaryPage() {
           <>
             {/* 給与(合計) */}
             <div className="glass-card p-6 text-center">
-              <p className="text-xs text-ink-soft mb-1">給与({PERIOD_LABELS[period]})</p>
+              <p className="text-xs text-ink-soft mb-1">
+                給与({periodLabel(period, baseDate, range)})
+              </p>
               <p className="text-4xl text-ink" style={{ fontFamily: 'var(--font-display)' }}>
                 {formatCurrency(salary.salary)}
               </p>
