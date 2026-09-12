@@ -26,6 +26,7 @@ const ReservationDetailPage = lazy(() => import('./pages/ReservationDetailPage')
 const ReservationFormPage = lazy(() => import('./pages/ReservationFormPage'));
 const AccountingPage = lazy(() => import('./pages/AccountingPage'));
 const RevenuePage = lazy(() => import('./pages/RevenuePage'));
+const SalaryPage = lazy(() => import('./pages/SalaryPage'));
 const ReservationHistoryPage = lazy(() => import('./pages/ReservationHistoryPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const PasswordChangePage = lazy(() => import('./pages/PasswordChangePage'));
@@ -72,6 +73,7 @@ function AppContent() {
             <Route path="/reservation/:id/pay" element={<AccountingPage />} />
             <Route path="/reservation/:id/history" element={<ReservationHistoryPage />} />
             <Route path="/revenue" element={<RevenuePage />} />
+            <Route path="/salary" element={<SalaryPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/settings/password" element={<PasswordChangePage />} />
             <Route path="/settings/backup" element={<BackupPage />} />

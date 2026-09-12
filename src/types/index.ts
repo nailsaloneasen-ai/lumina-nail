@@ -104,15 +104,47 @@ export interface DayAggregate {
   isToday: boolean;
 }
 
-/** 売上集計(期間指定: 今日 / 週 / 今月 / 年 / 期間指定) */
+/**
+ * 売上集計(期間指定: 今日 / 週 / 今月 / 年 / 期間指定)
+ * -----------------------------------------------------------------------
+ * totalRevenue等の「売上」は施術金額(priceAmount)ベース。ポイント値引きは
+ * 売上を減らさない(店の売上としては施術金額の全額が計上される)。
+ * actualReceived系は、ポイント値引き後にお客様から実際に受け取った金額
+ * (レジの現金照合など、実受取金額の確認用)。
+ * -----------------------------------------------------------------------
+ */
 export interface RevenueSummary {
   totalRevenue: number;
   cashRevenue: number;
   cardRevenue: number;
   emoneyRevenue: number;
+  /** 実受取金額(ポイント値引き後)の合計。レジ照合用の参考値 */
+  actualReceivedTotal: number;
+  actualReceivedCash: number;
+  actualReceivedCard: number;
+  actualReceivedEmoney: number;
   totalPointsUsed: number;
   customerCount: number;
   averageSpend: number;
+}
+
+/**
+ * 従業員の給与計算結果。
+ * salary = taxExcludedHalf(売上の半分から消費税分を除いた額) + nominationBonus(指名1件500円)
+ */
+export interface SalarySummary {
+  /** 対象期間の売上(施術金額ベース) */
+  revenue: number;
+  /** 売上の半分 */
+  half: number;
+  /** 半分を税込とみなし税抜きに変換した額(1円未満切り上げ) */
+  taxExcludedHalf: number;
+  /** 指名件数(このアプリの指名は常に従業員への指名) */
+  nominatedCount: number;
+  /** 指名ボーナス = 指名件数 × 500円 */
+  nominationBonus: number;
+  /** 給与 = taxExcludedHalf + nominationBonus */
+  salary: number;
 }
 
 /** 指名の有無別の集計(客数・売上・指名率) */

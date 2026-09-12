@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  calculateStaffSalary,
   dateRangeForPeriod,
   filterByNomination,
   filterPaidByMethod,
@@ -40,14 +41,16 @@ function makeReservation(overrides: Partial<Reservation>): Reservation {
 }
 
 describe('summarizeRevenue', () => {
-  it('会計済み・売上対象の予約だけを合算する', () => {
+  it('売上は施術金額(priceAmount)ベースで合算し、実受取金額はポイント値引き後(paidAmount)で別集計する', () => {
     const reservations = [
+      // 施術金額10000円、ポイント1000円使用 → 売上10000円・実受取9000円
       makeReservation({
         id: '1',
+        priceAmount: 10000,
         isPaid: true,
         payment: {
           pointsUsed: 1000,
-          paidAmount: 7000,
+          paidAmount: 9000,
           method: 'cash',
           isRevenueTarget: true,
           paidAt: '',
@@ -56,6 +59,7 @@ describe('summarizeRevenue', () => {
       }),
       makeReservation({
         id: '2',
+        priceAmount: 5000,
         isPaid: true,
         payment: {
           pointsUsed: 0,
@@ -66,12 +70,14 @@ describe('summarizeRevenue', () => {
           paidBy: '',
         },
       }),
+      // 施術金額3000円、ポイント200円使用 → 売上3000円・実受取2800円
       makeReservation({
         id: '3',
+        priceAmount: 3000,
         isPaid: true,
         payment: {
           pointsUsed: 200,
-          paidAmount: 3000,
+          paidAmount: 2800,
           method: 'emoney',
           isRevenueTarget: true,
           paidAt: '',
@@ -97,18 +103,27 @@ describe('summarizeRevenue', () => {
 
     const summary = summarizeRevenue(reservations);
 
-    expect(summary.totalRevenue).toBe(15000); // 7000 + 5000 + 3000
-    expect(summary.cashRevenue).toBe(7000);
+    // 売上(施術金額ベース。ポイント値引きの影響を受けない)
+    expect(summary.totalRevenue).toBe(18000); // 10000 + 5000 + 3000
+    expect(summary.cashRevenue).toBe(10000);
     expect(summary.cardRevenue).toBe(5000);
     expect(summary.emoneyRevenue).toBe(3000);
+
+    // 実受取金額(ポイント値引き後の実際の受取額)
+    expect(summary.actualReceivedTotal).toBe(16800); // 9000 + 5000 + 2800
+    expect(summary.actualReceivedCash).toBe(9000);
+    expect(summary.actualReceivedCard).toBe(5000);
+    expect(summary.actualReceivedEmoney).toBe(2800);
+
     expect(summary.totalPointsUsed).toBe(1200); // 1000 + 0 + 200
     expect(summary.customerCount).toBe(3); // 未会計・売上対象外は含まない
-    expect(summary.averageSpend).toBe(5000); // 15000 / 3
+    expect(summary.averageSpend).toBe(6000); // 18000 / 3(施術金額ベースの平均)
   });
 
   it('該当する予約が1件もない場合は、すべて0になる', () => {
     const summary = summarizeRevenue([]);
     expect(summary.totalRevenue).toBe(0);
+    expect(summary.actualReceivedTotal).toBe(0);
     expect(summary.customerCount).toBe(0);
     expect(summary.averageSpend).toBe(0);
   });
@@ -117,6 +132,7 @@ describe('summarizeRevenue', () => {
     const reservations = [
       makeReservation({
         id: '1',
+        priceAmount: 1000,
         isPaid: true,
         payment: {
           pointsUsed: 0,
@@ -129,6 +145,7 @@ describe('summarizeRevenue', () => {
       }),
       makeReservation({
         id: '2',
+        priceAmount: 1000,
         isPaid: true,
         payment: {
           pointsUsed: 0,
@@ -141,6 +158,7 @@ describe('summarizeRevenue', () => {
       }),
       makeReservation({
         id: '3',
+        priceAmount: 1000,
         isPaid: true,
         payment: {
           pointsUsed: 0,
@@ -314,15 +332,17 @@ describe('dateRangeForPeriod', () => {
 });
 
 describe('summarizeNomination', () => {
-  it('指名の有無ごとに客数・売上・指名率を集計する', () => {
+  it('指名の有無ごとに客数・売上(施術金額ベース)・指名率を集計する', () => {
     const reservations = [
+      // 施術金額8000円・ポイント利用でpaidAmountは7000円だが、集計には影響しない
       makeReservation({
         id: '1',
+        priceAmount: 8000,
         isPaid: true,
         isNominated: true,
         payment: {
-          pointsUsed: 0,
-          paidAmount: 8000,
+          pointsUsed: 1000,
+          paidAmount: 7000,
           method: 'cash',
           isRevenueTarget: true,
           paidAt: '',
@@ -331,6 +351,7 @@ describe('summarizeNomination', () => {
       }),
       makeReservation({
         id: '2',
+        priceAmount: 6000,
         isPaid: true,
         isNominated: true,
         payment: {
@@ -344,6 +365,7 @@ describe('summarizeNomination', () => {
       }),
       makeReservation({
         id: '3',
+        priceAmount: 5000,
         isPaid: true,
         isNominated: false,
         payment: {
@@ -362,7 +384,7 @@ describe('summarizeNomination', () => {
     const result = summarizeNomination(reservations);
 
     expect(result.nominatedCount).toBe(2);
-    expect(result.nominatedRevenue).toBe(14000);
+    expect(result.nominatedRevenue).toBe(14000); // 8000 + 6000(施術金額ベース)
     expect(result.notNominatedCount).toBe(1);
     expect(result.notNominatedRevenue).toBe(5000);
     // 指名率 = 2 / (2+1) = 66.66...% → 四捨五入で67%
@@ -427,5 +449,64 @@ describe('filterByNomination', () => {
     const result = filterByNomination(reservations, true);
 
     expect(result.map((r) => r.id)).toEqual(['nominated-new', 'nominated-old']);
+  });
+});
+
+describe('calculateStaffSalary', () => {
+  it('売上の半分を税抜きに変換(1円未満切り上げ)し、指名1件500円を人数分加算する', () => {
+    const reservations = [
+      // 施術金額100,000円、指名2件(500円×2=1000円のボーナス対象)
+      makeReservation({
+        id: '1',
+        priceAmount: 60000,
+        isPaid: true,
+        isNominated: true,
+        payment: {
+          pointsUsed: 0,
+          paidAmount: 60000,
+          method: 'cash',
+          isRevenueTarget: true,
+          paidAt: '',
+          paidBy: '',
+        },
+      }),
+      makeReservation({
+        id: '2',
+        priceAmount: 40000,
+        isPaid: true,
+        isNominated: true,
+        payment: {
+          pointsUsed: 0,
+          paidAmount: 40000,
+          method: 'card',
+          isRevenueTarget: true,
+          paidAt: '',
+          paidBy: '',
+        },
+      }),
+    ];
+
+    const result = calculateStaffSalary(reservations);
+
+    // revenue = 100,000円 → half = 50,000円
+    // taxExcludedHalf = ceil(50,000 / 1.1) = ceil(45,454.54...) = 45,455円
+    // nominationBonus = 2 × 500 = 1,000円
+    // salary = 45,455 + 1,000 = 46,455円
+    expect(result.revenue).toBe(100000);
+    expect(result.half).toBe(50000);
+    expect(result.taxExcludedHalf).toBe(45455);
+    expect(result.nominatedCount).toBe(2);
+    expect(result.nominationBonus).toBe(1000);
+    expect(result.salary).toBe(46455);
+  });
+
+  it('該当する予約が1件もない場合は、すべて0になる', () => {
+    const result = calculateStaffSalary([]);
+    expect(result.revenue).toBe(0);
+    expect(result.half).toBe(0);
+    expect(result.taxExcludedHalf).toBe(0);
+    expect(result.nominatedCount).toBe(0);
+    expect(result.nominationBonus).toBe(0);
+    expect(result.salary).toBe(0);
   });
 });

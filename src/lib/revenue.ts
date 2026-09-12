@@ -5,6 +5,7 @@ import type {
   Reservation,
   RevenuePeriod,
   RevenueSummary,
+  SalarySummary,
 } from '../types';
 
 /**
@@ -51,6 +52,12 @@ export function dateRangeForPeriod(
 /**
  * 予約一覧から売上サマリーを集計する。
  * 集計対象は「会計済み(isPaid)」かつ「売上対象(isRevenueTarget)」の予約のみ。
+ *
+ * 売上(totalRevenue等)は施術金額(priceAmount)ベースで計算する。ポイント値引きは
+ * 店にとっての売上を減らすものではなく、値引き分を店が負担しているだけなので、
+ * 売上には影響しない(指名料はこの時点では関係しない)。
+ * 一方、お客様が実際に支払った金額(ポイント値引き後、レジの現金照合などに使う実受取金額)は
+ * actualReceived系として別枠で集計する。
  */
 export function summarizeRevenue(reservations: Reservation[]): RevenueSummary {
   const targetReservations = reservations.filter(
@@ -60,18 +67,29 @@ export function summarizeRevenue(reservations: Reservation[]): RevenueSummary {
   let cashRevenue = 0;
   let cardRevenue = 0;
   let emoneyRevenue = 0;
+  let actualReceivedCash = 0;
+  let actualReceivedCard = 0;
+  let actualReceivedEmoney = 0;
   let totalPointsUsed = 0;
 
   for (const reservation of targetReservations) {
     const payment = reservation.payment!;
     totalPointsUsed += payment.pointsUsed;
 
-    if (payment.method === 'cash') cashRevenue += payment.paidAmount;
-    else if (payment.method === 'card') cardRevenue += payment.paidAmount;
-    else if (payment.method === 'emoney') emoneyRevenue += payment.paidAmount;
+    if (payment.method === 'cash') {
+      cashRevenue += reservation.priceAmount;
+      actualReceivedCash += payment.paidAmount;
+    } else if (payment.method === 'card') {
+      cardRevenue += reservation.priceAmount;
+      actualReceivedCard += payment.paidAmount;
+    } else if (payment.method === 'emoney') {
+      emoneyRevenue += reservation.priceAmount;
+      actualReceivedEmoney += payment.paidAmount;
+    }
   }
 
   const totalRevenue = cashRevenue + cardRevenue + emoneyRevenue;
+  const actualReceivedTotal = actualReceivedCash + actualReceivedCard + actualReceivedEmoney;
   const customerCount = targetReservations.length;
   const averageSpend = customerCount > 0 ? Math.round(totalRevenue / customerCount) : 0;
 
@@ -80,6 +98,10 @@ export function summarizeRevenue(reservations: Reservation[]): RevenueSummary {
     cashRevenue,
     cardRevenue,
     emoneyRevenue,
+    actualReceivedTotal,
+    actualReceivedCash,
+    actualReceivedCard,
+    actualReceivedEmoney,
     totalPointsUsed,
     customerCount,
     averageSpend,
@@ -127,6 +149,7 @@ export function filterPointsUsage(reservations: Reservation[]): Reservation[] {
 /**
  * 予約一覧から、指名の有無別に客数・売上・指名率を集計する。
  * 集計対象は summarizeRevenue と同じく「会計済み・売上対象」の予約のみ。
+ * 売上は summarizeRevenue と同じく施術金額(priceAmount)ベース。
  */
 export function summarizeNomination(reservations: Reservation[]): NominationSummary {
   const targetReservations = reservations.filter(
@@ -139,7 +162,7 @@ export function summarizeNomination(reservations: Reservation[]): NominationSumm
   let notNominatedRevenue = 0;
 
   for (const reservation of targetReservations) {
-    const amount = reservation.payment!.paidAmount;
+    const amount = reservation.priceAmount;
     if (reservation.isNominated) {
       nominatedCount += 1;
       nominatedRevenue += amount;
@@ -159,6 +182,42 @@ export function summarizeNomination(reservations: Reservation[]): NominationSumm
     notNominatedCount,
     notNominatedRevenue,
     nominationRate,
+  };
+}
+
+/** 消費税率(10%)。給与計算で「売上の半分」を税込とみなし税抜きに変換する際に使用する */
+const CONSUMPTION_TAX_RATE = 0.1;
+
+/** 指名1件あたりの給与ボーナス額(円)。このアプリの指名は常に従業員への指名 */
+const NOMINATION_BONUS_PER_RESERVATION = 500;
+
+/**
+ * 従業員の給与を計算する。
+ *
+ * 計算方法:
+ * 1. 対象期間の売上(施術金額ベース)を半分にする
+ * 2. その半分を税込金額とみなし、税抜き額に変換する(1円未満は切り上げ)
+ * 3. 指名1件につき500円のボーナスを、指名件数分加算する
+ *    (このアプリでは指名=常に従業員への指名のため、指名件数がそのまま対象になる)
+ *
+ * salary = ceil(revenue / 2 / 1.1) + nominatedCount × 500
+ */
+export function calculateStaffSalary(reservations: Reservation[]): SalarySummary {
+  const { totalRevenue: revenue } = summarizeRevenue(reservations);
+  const { nominatedCount } = summarizeNomination(reservations);
+
+  const half = revenue / 2;
+  const taxExcludedHalf = Math.ceil(half / (1 + CONSUMPTION_TAX_RATE));
+  const nominationBonus = nominatedCount * NOMINATION_BONUS_PER_RESERVATION;
+  const salary = taxExcludedHalf + nominationBonus;
+
+  return {
+    revenue,
+    half,
+    taxExcludedHalf,
+    nominatedCount,
+    nominationBonus,
+    salary,
   };
 }
 

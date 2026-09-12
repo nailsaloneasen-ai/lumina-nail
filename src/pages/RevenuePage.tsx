@@ -198,6 +198,27 @@ export default function RevenuePage() {
           />
         </div>
 
+        {/* 実受取金額(レジ照合用の参考値。売上とは別枠) */}
+        <div className="glass-card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-medium text-ink">実受取金額(レジ照合用)</p>
+            <p className="text-lg text-ink" style={{ fontFamily: 'var(--font-display)' }}>
+              {formatCurrency(summary.actualReceivedTotal)}
+            </p>
+          </div>
+          <p className="text-[11px] text-ink-soft mb-3">
+            売上(施術金額ベース)からポイント値引き分を差し引いた、実際にお客様から受け取った金額です。
+          </p>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <SummaryItem label="現金" value={formatCurrency(summary.actualReceivedCash)} />
+            <SummaryItem label="カード" value={formatCurrency(summary.actualReceivedCard)} />
+            <SummaryItem
+              label="電子マネー"
+              value={formatCurrency(summary.actualReceivedEmoney)}
+            />
+          </div>
+        </div>
+
         {/* その他指標 */}
         <div className="glass-card p-5 grid grid-cols-3 gap-3 text-center">
           <SummaryItem
@@ -363,6 +384,10 @@ function PrintableRevenueReport({
             value={formatCurrency(summary.emoneyRevenue)}
           />
           <PrintSummaryRow
+            label="実受取金額(参考)"
+            value={formatCurrency(summary.actualReceivedTotal)}
+          />
+          <PrintSummaryRow
             label="ポイント利用"
             value={`${summary.totalPointsUsed.toLocaleString('ja-JP')}pt`}
           />
@@ -476,7 +501,7 @@ function PaymentMethodDetailModal({
   onClose: () => void;
   onSelectReservation: (id: string) => void;
 }) {
-  const total = entries.reduce((sum, r) => sum + (r.payment?.paidAmount ?? 0), 0);
+  const total = entries.reduce((sum, r) => sum + r.priceAmount, 0);
 
   return (
     <div
@@ -489,7 +514,7 @@ function PaymentMethodDetailModal({
         <div className="p-5 pb-3 flex items-center justify-between shrink-0">
           <div>
             <p className="text-xs text-ink-soft">
-              {periodLabel} ・ {PAYMENT_METHOD_LABELS[method]}の内訳
+              {periodLabel} ・ {PAYMENT_METHOD_LABELS[method]}の内訳(売上)
             </p>
             <p className="text-xl text-ink" style={{ fontFamily: 'var(--font-display)' }}>
               {formatCurrency(total)}
@@ -530,7 +555,7 @@ function PaymentMethodDetailModal({
                   </p>
                 </div>
                 <p className="shrink-0 text-sm font-medium text-ink">
-                  {formatCurrency(reservation.payment?.paidAmount ?? 0)}
+                  {formatCurrency(reservation.priceAmount)}
                 </p>
               </button>
             ))
@@ -636,7 +661,7 @@ function NominationDetailModal({
   onClose: () => void;
   onSelectReservation: (id: string) => void;
 }) {
-  const total = entries.reduce((sum, r) => sum + (r.payment?.paidAmount ?? 0), 0);
+  const total = entries.reduce((sum, r) => sum + r.priceAmount, 0);
 
   return (
     <div
@@ -649,7 +674,7 @@ function NominationDetailModal({
         <div className="p-5 pb-3 flex items-center justify-between shrink-0">
           <div>
             <p className="text-xs text-ink-soft">
-              {periodLabel} ・ 指名{isNominated ? 'あり' : 'なし'}の内訳
+              {periodLabel} ・ 指名{isNominated ? 'あり' : 'なし'}の内訳(売上)
             </p>
             <p className="text-xl text-ink" style={{ fontFamily: 'var(--font-display)' }}>
               {formatCurrency(total)}
@@ -690,7 +715,7 @@ function NominationDetailModal({
                   </p>
                 </div>
                 <p className="shrink-0 text-sm font-medium text-ink">
-                  {formatCurrency(reservation.payment?.paidAmount ?? 0)}
+                  {formatCurrency(reservation.priceAmount)}
                 </p>
               </button>
             ))

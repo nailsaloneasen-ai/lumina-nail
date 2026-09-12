@@ -31,6 +31,11 @@ export default function SettingsPage() {
 
   const menuItems = [
     {
+      label: '給与計算',
+      description: '期間内の売上をもとに従業員の給与を自動計算します',
+      to: '/salary',
+    },
+    {
       label: 'パスワード変更',
       description: 'ログイン中のアカウントのパスワードを変更します',
       to: '/settings/password',
