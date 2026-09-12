@@ -26,9 +26,13 @@ export function formatDateJP(dateString: string): string {
   return `${year}年${month}月${day}日(${weekday})`;
 }
 
-/** 金額(数値)を「¥8,000」形式に整形する */
+/**
+ * 金額(数値)を「¥8,000」形式に整形する。
+ * 円は本来小数を持たないため、念のため1円未満は四捨五入してから整形する
+ * (例: 給与計算で売上を2等分した際に生じうる .5円 などを吸収する)。
+ */
 export function formatCurrency(amount: number): string {
-  return `¥${amount.toLocaleString('ja-JP')}`;
+  return `¥${Math.round(amount).toLocaleString('ja-JP')}`;
 }
 
 /**

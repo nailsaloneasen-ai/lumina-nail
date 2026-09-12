@@ -61,12 +61,14 @@ export function subscribeReservationsByDate(
 /**
  * 予約一覧から本日の売上を集計する。
  * 会計済み(isPaid) かつ 売上対象(isRevenueTarget) の予約のみを合算する。
+ * 売上画面(summarizeRevenue)と同じく、施術金額(priceAmount)ベースで計算する。
+ * ポイント値引きは売上を減らさない。
  */
 export function sumTodayRevenue(reservations: Reservation[]): number {
   return reservations.reduce((total, reservation) => {
     const payment = reservation.payment;
     if (reservation.isPaid && payment && payment.isRevenueTarget) {
-      return total + payment.paidAmount;
+      return total + reservation.priceAmount;
     }
     return total;
   }, 0);

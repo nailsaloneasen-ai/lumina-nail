@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getDayStatus, groupReservationsByDate } from './reservations';
+import { getDayStatus, groupReservationsByDate, sumTodayRevenue } from './reservations';
 import type { Reservation } from '../types';
 
 function makeReservation(overrides: Partial<Reservation>): Reservation {
@@ -63,5 +63,48 @@ describe('groupReservationsByDate', () => {
     expect(grouped.get('2026-07-29')).toHaveLength(2);
     expect(grouped.get('2026-07-30')).toHaveLength(1);
     expect(grouped.get('2026-08-01')).toBeUndefined();
+  });
+});
+
+describe('sumTodayRevenue', () => {
+  it('売上画面(summarizeRevenue)と同じく、施術金額(priceAmount)ベースで合算する', () => {
+    const reservations = [
+      // 施術金額10000円・ポイント1000円使用 → 売上は10000円(ポイント値引きの影響を受けない)
+      makeReservation({
+        id: '1',
+        priceAmount: 10000,
+        isPaid: true,
+        payment: {
+          pointsUsed: 1000,
+          paidAmount: 9000,
+          method: 'cash',
+          isRevenueTarget: true,
+          paidAt: '',
+          paidBy: '',
+        },
+      }),
+      // 未会計 → 集計対象外
+      makeReservation({ id: '2', priceAmount: 5000, isPaid: false, payment: null }),
+      // 会計済みだが売上対象外 → 集計対象外
+      makeReservation({
+        id: '3',
+        priceAmount: 3000,
+        isPaid: true,
+        payment: {
+          pointsUsed: 0,
+          paidAmount: 0,
+          method: 'cash',
+          isRevenueTarget: false,
+          paidAt: '',
+          paidBy: '',
+        },
+      }),
+    ];
+
+    expect(sumTodayRevenue(reservations)).toBe(10000);
+  });
+
+  it('該当する予約が1件もない場合は0になる', () => {
+    expect(sumTodayRevenue([])).toBe(0);
   });
 });
