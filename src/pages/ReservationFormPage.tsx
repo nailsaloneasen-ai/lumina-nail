@@ -14,6 +14,8 @@ import {
   updateReservationDetails,
   type ReservationInput,
 } from '../lib/reservations';
+import { notifyReservationUpdate } from '../lib/notify';
+import { buildChangeSummary, type ReservationSnapshot } from '../lib/reservationDiff';
 import { calculateEndTime, formatDateJP } from '../utils/format';
 
 /**
@@ -49,6 +51,10 @@ export default function ReservationFormPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingOverlapSave, setPendingOverlapSave] = useState(false);
   const [pendingLeaveConfirm, setPendingLeaveConfirm] = useState(false);
+  const [pendingNotifyConfirm, setPendingNotifyConfirm] = useState(false);
+
+  // 編集モードで読み込んだ「変更前」の値のスナップショット(変更通知の差分作成用)
+  const originalSnapshotRef = useRef<ReservationSnapshot | null>(null);
 
   // 編集モード: 既存データを読み込んでフォームに反映する
   useEffect(() => {
@@ -68,6 +74,17 @@ export default function ReservationFormPage() {
       // 存在しないため(Firestore上はundefined)、falseにフォールバックする
       setIsNominated(reservation.isNominated ?? false);
       setMemo(reservation.memo);
+      originalSnapshotRef.current = {
+        date: reservation.date,
+        startTime: reservation.startTime,
+        durationMinutes: reservation.durationMinutes,
+        customerName: reservation.customerName,
+        customerKana: reservation.customerKana,
+        phoneDigits: reservation.phoneNumber.replace(/\D/g, ''),
+        priceAmount: reservation.priceAmount,
+        isNominated: reservation.isNominated ?? false,
+        memo: reservation.memo,
+      };
       setIsInitialLoading(false);
     });
 
@@ -131,7 +148,7 @@ export default function ReservationFormPage() {
     return null;
   }
 
-  async function persist() {
+  async function persist(notifyStaff = false) {
     if (!user) return;
 
     const input: ReservationInput = {
@@ -152,6 +169,32 @@ export default function ReservationFormPage() {
       if (isEditMode && idParam) {
         await updateReservationDetails(idParam, input, user.uid);
         isDirtyRef.current = false;
+
+        if (notifyStaff) {
+          const before = originalSnapshotRef.current;
+          const changes = before
+            ? buildChangeSummary(before, {
+                date,
+                startTime,
+                durationMinutes,
+                customerName: input.customerName,
+                customerKana: input.customerKana,
+                phoneDigits,
+                priceAmount,
+                isNominated,
+                memo,
+              })
+            : [];
+          void notifyReservationUpdate({
+            customerName: input.customerName,
+            date: input.date,
+            startTime: input.startTime,
+            priceAmount: input.priceAmount,
+            isNominated: input.isNominated,
+            changes,
+          });
+        }
+
         showToast('保存しました');
         navigate(`/reservation/${idParam}`);
       } else {
@@ -195,6 +238,12 @@ export default function ReservationFormPage() {
         setPendingOverlapSave(true);
         return;
       }
+    }
+
+    // 編集モードでは、保存前に通知メールを送るかどうかを確認する
+    if (isEditMode) {
+      setPendingNotifyConfirm(true);
+      return;
     }
 
     await persist();
@@ -395,7 +444,27 @@ export default function ReservationFormPage() {
           onCancel={() => setPendingOverlapSave(false)}
           onConfirm={() => {
             setPendingOverlapSave(false);
-            void persist();
+            if (isEditMode) {
+              setPendingNotifyConfirm(true);
+            } else {
+              void persist();
+            }
+          }}
+        />
+      )}
+      {pendingNotifyConfirm && (
+        <ConfirmDialog
+          title="通知メールの送信"
+          message={'変更内容をスタッフに通知メールで知らせますか?\n(どちらを選んでも保存は行われます)'}
+          confirmLabel="送る"
+          cancelLabel="送らない"
+          onCancel={() => {
+            setPendingNotifyConfirm(false);
+            void persist(false);
+          }}
+          onConfirm={() => {
+            setPendingNotifyConfirm(false);
+            void persist(true);
           }}
         />
       )}
