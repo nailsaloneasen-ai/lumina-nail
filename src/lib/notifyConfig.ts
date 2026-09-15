@@ -9,7 +9,8 @@
  */
 
 /** Google Apps ScriptのウェブアプリURL(公開後にここへ貼り付ける) */
-export const NOTIFY_WEBAPP_URL = '';
+export const NOTIFY_WEBAPP_URL =
+  'https://script.google.com/macros/s/AKfycbxcAc-kCW-SvwaXtxfPNxyxxk-525H-R7FIwwilxXFXD2peFoYqojDRh9PKSO0GDhRXzg/exec';
 
 /** Apps Script側のSECRETと同じ値にすること */
 export const NOTIFY_SECRET = '88f1d7b8c7cdb47d477894f071d16c531a3c7c0870a6da3e';
