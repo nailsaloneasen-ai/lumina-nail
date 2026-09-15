@@ -13,6 +13,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { notifyNewReservation } from './notify';
 import type { PaymentHistoryEntry, PaymentInfo, Reservation } from '../types';
 
 /** Firestoreの予約コレクション名 */
@@ -197,6 +198,17 @@ export async function createReservation(
     updatedAt: now,
     updatedBy: uid,
   });
+
+  // 通知メールの送信に失敗しても予約の作成自体は成功させたいため、
+  // 完了を待たずに(await しない)裏側で実行する
+  void notifyNewReservation({
+    customerName: input.customerName,
+    date: input.date,
+    startTime: input.startTime,
+    priceAmount: input.priceAmount,
+    isNominated: input.isNominated,
+  });
+
   return docRef.id;
 }
 

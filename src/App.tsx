@@ -30,6 +30,7 @@ const SalaryPage = lazy(() => import('./pages/SalaryPage'));
 const ReservationHistoryPage = lazy(() => import('./pages/ReservationHistoryPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const PasswordChangePage = lazy(() => import('./pages/PasswordChangePage'));
+const NotificationSettingsPage = lazy(() => import('./pages/NotificationSettingsPage'));
 const BackupPage = lazy(() => import('./pages/BackupPage'));
 const TrashPage = lazy(() => import('./pages/TrashPage'));
 
@@ -76,6 +77,7 @@ function AppContent() {
             <Route path="/salary" element={<SalaryPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/settings/password" element={<PasswordChangePage />} />
+            <Route path="/settings/notifications" element={<NotificationSettingsPage />} />
             <Route path="/settings/backup" element={<BackupPage />} />
             <Route path="/settings/trash" element={<TrashPage />} />
           </Routes>

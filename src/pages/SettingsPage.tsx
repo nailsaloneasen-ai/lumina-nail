@@ -36,6 +36,11 @@ export default function SettingsPage() {
       to: '/salary',
     },
     {
+      label: '予約通知の設定',
+      description: '新規予約が入ったときにメールで通知するスタッフのアドレス',
+      to: '/settings/notifications',
+    },
+    {
       label: 'パスワード変更',
       description: 'ログイン中のアカウントのパスワードを変更します',
       to: '/settings/password',

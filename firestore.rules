@@ -54,6 +54,13 @@ service cloud.firestore {
       }
     }
 
+    // アプリ全体の設定(通知先メールアドレス等)。オーナーのみ変更可能、
+    // 予約作成(オーナー操作)時に通知先を読む必要があるため閲覧はログイン済みなら可能
+    match /settings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner();
+    }
+
     // 上記以外のコレクションへのアクセスはすべて拒否(デフォルト拒否)
     match /{document=**} {
       allow read, write: if false;
