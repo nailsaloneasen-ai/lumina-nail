@@ -1,10 +1,11 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import LoginPage from './pages/LoginPage';
 import LoadingScreen from './components/LoadingScreen';
 import OfflineBanner from './components/OfflineBanner';
+import { runAutoBackupIfDue } from './lib/autoBackup';
 
 /**
  * 画面ごとの遅延読み込み(コード分割)
@@ -41,6 +42,13 @@ const TrashPage = lazy(() => import('./pages/TrashPage'));
 function AppContent() {
   const { user, isLoading } = useAuth();
   const location = useLocation();
+
+  // オーナーがアプリを開いたタイミングで、必要であれば自動バックアップを実行する
+  useEffect(() => {
+    if (user?.role === 'owner') {
+      void runAutoBackupIfDue();
+    }
+  }, [user]);
 
   if (isLoading) {
     return <LoadingScreen />;
