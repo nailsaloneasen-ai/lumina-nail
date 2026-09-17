@@ -16,6 +16,11 @@ import {
 } from '../lib/reservations';
 import { notifyReservationUpdate } from '../lib/notify';
 import { buildChangeSummary, type ReservationSnapshot } from '../lib/reservationDiff';
+import {
+  filterCustomerSuggestions,
+  getCustomerSuggestions,
+  type CustomerSuggestion,
+} from '../lib/customers';
 import { calculateEndTime, formatDateJP } from '../utils/format';
 
 /**
@@ -52,6 +57,16 @@ export default function ReservationFormPage() {
   const [pendingOverlapSave, setPendingOverlapSave] = useState(false);
   const [pendingLeaveConfirm, setPendingLeaveConfirm] = useState(false);
   const [pendingNotifyConfirm, setPendingNotifyConfirm] = useState(false);
+
+  // 顧客名の入力補完(オートコンプリート)
+  const [customerSuggestions, setCustomerSuggestions] = useState<CustomerSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  useEffect(() => {
+    getCustomerSuggestions()
+      .then(setCustomerSuggestions)
+      .catch(() => setCustomerSuggestions([]));
+  }, []);
 
   // 編集モードで読み込んだ「変更前」の値のスナップショット(変更通知の差分作成用)
   const originalSnapshotRef = useRef<ReservationSnapshot | null>(null);
@@ -322,19 +337,61 @@ export default function ReservationFormPage() {
           )}
 
           {/* 顧客名・読み仮名 */}
-          <div>
+          <div className="relative">
             <label htmlFor="customerName" className="block text-sm text-ink-soft mb-1.5">
               顧客名<span className="text-lumina-pink-deep"> *</span>
             </label>
             <input
               id="customerName"
               type="text"
+              autoComplete="off"
               value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
+              onChange={(e) => {
+                setCustomerName(e.target.value);
+                setShowSuggestions(true);
+              }}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => {
+                // 候補タップのクリックイベントを拾えるよう、少し遅らせて閉じる
+                setTimeout(() => setShowSuggestions(false), 150);
+              }}
               className="w-full rounded-xl border border-lumina-blush bg-white/80 px-4 py-3
                          text-base text-ink outline-none focus:border-lumina-pink-deep
                          focus:ring-2 focus:ring-lumina-pink/40"
             />
+
+            {showSuggestions &&
+              filterCustomerSuggestions(customerSuggestions, customerName).length > 0 && (
+                <ul
+                  className="absolute z-10 mt-1 w-full glass-card bg-white/95 py-1 max-h-56
+                             overflow-y-auto"
+                >
+                  {filterCustomerSuggestions(customerSuggestions, customerName).map(
+                    (suggestion) => (
+                      <li key={`${suggestion.customerName}-${suggestion.phoneNumber}`}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCustomerName(suggestion.customerName);
+                            setCustomerKana(suggestion.customerKana);
+                            setPhoneDigits(suggestion.phoneNumber);
+                            setShowSuggestions(false);
+                          }}
+                          className="w-full text-left px-4 py-2.5 active:bg-lumina-blush/40
+                                     transition-colors"
+                        >
+                          <span className="text-sm text-ink">{suggestion.customerName}</span>
+                          {suggestion.customerKana && (
+                            <span className="text-xs text-ink-soft ml-2">
+                              {suggestion.customerKana}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              )}
           </div>
 
           <div>
