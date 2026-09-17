@@ -116,6 +116,31 @@ export function subscribeReservationsByDateRange(
 }
 
 /**
+ * 期間指定の予約データを1回だけ取得する(リアルタイム購読はしない)。
+ * 月末サマリーメールなど、Reactコンポーネントの外(lib層)から
+ * 1度きりデータが欲しい場合に使う。
+ */
+export function getReservationsInRangeOnce(
+  start: string,
+  end: string,
+): Promise<Reservation[]> {
+  return new Promise((resolve, reject) => {
+    const unsubscribe = subscribeReservationsByDateRange(
+      start,
+      end,
+      (reservations) => {
+        unsubscribe();
+        resolve(reservations);
+      },
+      (error) => {
+        unsubscribe();
+        reject(error);
+      },
+    );
+  });
+}
+
+/**
  * 予約一覧を日付ごとにグルーピングし、カレンダー表示用の集計情報に変換する。
  * key: YYYY-MM-DD, value: その日の予約配列
  */

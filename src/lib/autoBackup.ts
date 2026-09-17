@@ -25,7 +25,8 @@ function backupSettingsDocRef() {
   return doc(db, 'settings', BACKUP_SETTINGS_DOC_ID);
 }
 
-async function getLastAutoBackupAt(): Promise<string | null> {
+/** 直近の自動バックアップ「試行」時刻を取得する(設定画面の表示用にも使う) */
+export async function getLastAutoBackupAt(): Promise<string | null> {
   const snapshot = await getDoc(backupSettingsDocRef());
   const data = snapshot.data();
   return (data?.lastAutoBackupAt as string | undefined) ?? null;

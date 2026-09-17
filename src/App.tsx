@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage';
 import LoadingScreen from './components/LoadingScreen';
 import OfflineBanner from './components/OfflineBanner';
 import { runAutoBackupIfDue } from './lib/autoBackup';
+import { sendMonthlySummaryIfDue } from './lib/monthlySummary';
 
 /**
  * 画面ごとの遅延読み込み(コード分割)
@@ -43,10 +44,12 @@ function AppContent() {
   const { user, isLoading } = useAuth();
   const location = useLocation();
 
-  // オーナーがアプリを開いたタイミングで、必要であれば自動バックアップを実行する
+  // オーナーがアプリを開いたタイミングで、必要であれば自動バックアップと
+  // 前月分の月次サマリーメールを実行する
   useEffect(() => {
     if (user?.role === 'owner') {
       void runAutoBackupIfDue();
+      void sendMonthlySummaryIfDue();
     }
   }, [user]);
 

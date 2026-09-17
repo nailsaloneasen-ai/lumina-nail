@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -10,6 +10,7 @@ import {
   importBackupJson,
   validateBackupPayload,
 } from '../lib/backup';
+import { getLastAutoBackupAt } from '../lib/autoBackup';
 import { todayDateString } from '../utils/format';
 import type { BackupPayload } from '../types';
 
@@ -35,6 +36,16 @@ export default function BackupPage() {
   const [pendingImportPayload, setPendingImportPayload] = useState<BackupPayload | null>(
     null,
   );
+  const [lastAutoBackupAt, setLastAutoBackupAt] = useState<string | null | undefined>(
+    undefined, // undefined = 読み込み中
+  );
+
+  useEffect(() => {
+    if (user?.role !== 'owner') return;
+    getLastAutoBackupAt()
+      .then(setLastAutoBackupAt)
+      .catch(() => setLastAutoBackupAt(null));
+  }, [user]);
 
   if (user?.role !== 'owner') {
     return (
@@ -125,6 +136,26 @@ export default function BackupPage() {
             {message.text}
           </p>
         )}
+
+        <div className="glass-card p-5 space-y-2">
+          <p className="text-sm font-medium text-ink">Google Driveへの自動バックアップ</p>
+          <p className="text-xs text-ink-soft">
+            アプリを開くたびに(前回から20時間以上経っていれば)、Google Drive
+            へ自動でバックアップを保存しています。
+          </p>
+          <p className="text-sm text-ink">
+            最終実行:{' '}
+            {lastAutoBackupAt === undefined
+              ? '読み込み中…'
+              : lastAutoBackupAt === null
+                ? 'まだ実行されていません'
+                : new Date(lastAutoBackupAt).toLocaleString('ja-JP')}
+          </p>
+          <p className="text-[11px] text-ink-soft">
+            ※ここに表示されるのは「送信を試みた時刻」です。実際にGoogle Driveへの
+            保存が成功したかどうかは、アプリ側では確認できません。
+          </p>
+        </div>
 
         <div className="glass-card p-5 space-y-3">
           <p className="text-sm font-medium text-ink">JSONエクスポート</p>
