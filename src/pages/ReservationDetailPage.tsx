@@ -13,7 +13,7 @@ import {
 } from '../lib/reservations';
 import { restoreReservation } from '../lib/trash';
 import { formatCurrency, formatDateJP, formatPhoneNumber } from '../utils/format';
-import type { PaymentMethod } from '../types';
+import type { PaymentMethod, Reservation } from '../types';
 
 const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: '現金',
@@ -138,9 +138,11 @@ export default function ReservationDetailPage() {
 
   return (
     <div className="min-h-dvh pb-16">
-      <AppHeader title="予約詳細" />
+      <div className="no-print">
+        <AppHeader title="予約詳細" />
+      </div>
 
-      <main className="px-5 -mt-2 pt-6 space-y-4">
+      <main className="no-print px-5 -mt-2 pt-6 space-y-4">
         <button
           type="button"
           onClick={() => navigate(`/reservations/${reservation.date}`)}
@@ -342,8 +344,89 @@ export default function ReservationDetailPage() {
             修正履歴を見る
           </button>
         )}
+
+        {/* PDF出力(印刷) */}
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="w-full rounded-xl py-3 text-sm font-medium text-lumina-wisteria
+                     border border-lumina-wisteria/30 transition-[background-color,transform]
+                     active:bg-lumina-blush/40 active:scale-[0.98]"
+        >
+          PDF出力(印刷)
+        </button>
       </main>
+
+      {/* 印刷(PDF出力)専用のレポート。画面上には表示されず、印刷時にのみ表示される */}
+      <PrintableReservationReceipt reservation={reservation} />
     </div>
+  );
+}
+
+/**
+ * PDF出力(印刷)専用の、予約1件分の領収書風レイアウト。
+ * 通常時は非表示(.print-only)で、window.print()が呼ばれた時のみ表示される。
+ */
+function PrintableReservationReceipt({ reservation }: { reservation: Reservation }) {
+  return (
+    <div className="print-only p-8 text-black">
+      <h1 className="text-2xl font-bold mb-1">S'Argent 予約票</h1>
+      <p className="text-sm mb-6">{formatDateJP(reservation.date)}</p>
+
+      <table className="w-full text-sm border-collapse">
+        <tbody>
+          <PrintRow label="お客様名" value={reservation.customerName} />
+          {reservation.customerKana && (
+            <PrintRow label="読み仮名" value={reservation.customerKana} />
+          )}
+          {reservation.phoneNumber && (
+            <PrintRow label="電話番号" value={formatPhoneNumber(reservation.phoneNumber)} />
+          )}
+          <PrintRow label="開始時間" value={reservation.startTime || '未定'} />
+          <PrintRow label="施術時間" value={`${reservation.durationMinutes}分`} />
+          <PrintRow label="終了時間" value={reservation.endTime || '未定'} />
+          <PrintRow label="指名" value={reservation.isNominated ? 'あり' : 'なし'} />
+          <PrintRow
+            label="施術金額"
+            value={
+              reservation.priceAmount > 0
+                ? formatCurrency(reservation.priceAmount)
+                : '未定'
+            }
+          />
+          {reservation.payment && (
+            <>
+              <PrintRow
+                label="支払い方法"
+                value={PAYMENT_METHOD_LABELS[reservation.payment.method]}
+              />
+              <PrintRow
+                label="ポイント利用"
+                value={
+                  reservation.payment.pointsUsed > 0
+                    ? `${reservation.payment.pointsUsed.toLocaleString('ja-JP')}pt`
+                    : '利用なし'
+                }
+              />
+              <PrintRow
+                label="お支払い金額"
+                value={formatCurrency(reservation.payment.paidAmount)}
+              />
+            </>
+          )}
+          {reservation.memo && <PrintRow label="メモ" value={reservation.memo} />}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PrintRow({ label, value }: { label: string; value: string }) {
+  return (
+    <tr className="border-b border-gray-300">
+      <td className="py-2 pr-4 font-medium w-32 align-top">{label}</td>
+      <td className="py-2 whitespace-pre-line">{value}</td>
+    </tr>
   );
 }
 

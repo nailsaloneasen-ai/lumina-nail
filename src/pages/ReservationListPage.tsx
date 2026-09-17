@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { subscribeReservationsByDate } from '../lib/reservations';
-import { formatDateJP } from '../utils/format';
+import { formatCurrency, formatDateJP } from '../utils/format';
 import { useEffect, useState } from 'react';
 import AppHeader from '../components/AppHeader';
 import BottomNav from '../components/BottomNav';
@@ -38,9 +38,11 @@ export default function ReservationListPage() {
 
   return (
     <div className="min-h-dvh pb-24">
-      <AppHeader title="予約一覧" />
+      <div className="no-print">
+        <AppHeader title="予約一覧" />
+      </div>
 
-      <main className="px-5 -mt-2 pt-6 space-y-4">
+      <main className="no-print px-5 -mt-2 pt-6 space-y-4">
         <div className="flex items-center justify-between">
           <button
             type="button"
@@ -85,9 +87,79 @@ export default function ReservationListPage() {
             </div>
           )}
         </div>
+
+        {!isLoading && reservations.length > 0 && (
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="w-full rounded-xl py-3 text-sm font-medium text-lumina-wisteria
+                       border border-lumina-wisteria/30 transition-[background-color,transform]
+                       active:bg-lumina-blush/40 active:scale-[0.98]"
+          >
+            PDF出力(印刷)
+          </button>
+        )}
       </main>
 
-      <BottomNav />
+      {/* 印刷(PDF出力)専用の予約表。画面上には表示されず、印刷時にのみ表示される */}
+      {!isLoading && (
+        <PrintableReservationList date={date} reservations={reservations} />
+      )}
+
+      <div className="no-print">
+        <BottomNav />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * PDF出力(印刷)専用の、その日の予約一覧レイアウト。
+ * 通常時は非表示(.print-only)で、window.print()が呼ばれた時のみ表示される。
+ */
+function PrintableReservationList({
+  date,
+  reservations,
+}: {
+  date: string;
+  reservations: Reservation[];
+}) {
+  const sorted = [...reservations].sort((a, b) =>
+    a.startTime.localeCompare(b.startTime),
+  );
+
+  return (
+    <div className="print-only p-8 text-black">
+      <h1 className="text-2xl font-bold mb-1">S'Argent 予約表</h1>
+      <p className="text-sm mb-6">{formatDateJP(date)}</p>
+
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr className="border-b-2 border-black">
+            <th className="text-left py-1 pr-3">時間</th>
+            <th className="text-left py-1 pr-3">お客様名</th>
+            <th className="text-left py-1 pr-3">指名</th>
+            <th className="text-right py-1 pr-3">施術金額</th>
+            <th className="text-left py-1">会計</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((r) => (
+            <tr key={r.id} className="border-b border-gray-300">
+              <td className="py-1.5 pr-3">
+                {r.startTime || '未定'}
+                {r.endTime ? `〜${r.endTime}` : ''}
+              </td>
+              <td className="py-1.5 pr-3">{r.customerName}</td>
+              <td className="py-1.5 pr-3">{r.isNominated ? 'あり' : ''}</td>
+              <td className="py-1.5 pr-3 text-right">
+                {r.priceAmount > 0 ? formatCurrency(r.priceAmount) : ''}
+              </td>
+              <td className="py-1.5">{r.isPaid ? '済' : '未'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

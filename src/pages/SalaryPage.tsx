@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useRevenueData } from '../hooks/useRevenueData';
 import { calculateStaffSalary, dateRangeForPeriod } from '../lib/revenue';
 import { formatCurrency, formatDateJP } from '../utils/format';
-import type { RevenuePeriod } from '../types';
+import type { RevenuePeriod, SalarySummary } from '../types';
 
 /** 給与計算画面で使う期間。売上画面と異なり「期間指定(custom)」は含まない */
 type SalaryPeriod = Exclude<RevenuePeriod, 'custom'>;
@@ -114,9 +114,11 @@ export default function SalaryPage() {
 
   return (
     <div className="min-h-dvh pb-24">
-      <AppHeader title="給与計算" />
+      <div className="no-print">
+        <AppHeader title="給与計算" />
+      </div>
 
-      <main className="px-5 -mt-2 pt-6 space-y-5">
+      <main className="no-print px-5 -mt-2 pt-6 space-y-5">
         {/* 期間の種類切り替え(今日/週/月/年) */}
         <div className="glass-card p-1.5 flex gap-1">
           {(Object.keys(PERIOD_LABELS) as SalaryPeriod[]).map((key) => (
@@ -222,12 +224,82 @@ export default function SalaryPage() {
                 売上は施術金額ベース(ポイント値引きの影響を受けません)。指名はこのアプリでは常に従業員への指名として扱われます。
               </p>
             </div>
+
+            {/* PDF出力(印刷) */}
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="w-full rounded-xl py-3 text-sm font-medium text-lumina-wisteria
+                         border border-lumina-wisteria/30 transition-[background-color,transform]
+                         active:bg-lumina-blush/40 active:scale-[0.98]"
+            >
+              PDF出力(印刷)
+            </button>
           </>
         )}
       </main>
 
-      <BottomNav />
+      {/* 印刷(PDF出力)専用の給与明細。画面上には表示されず、印刷時にのみ表示される */}
+      {!isLoading && (
+        <PrintableSalaryReport periodLabel={periodLabel(period, baseDate, range)} salary={salary} />
+      )}
+
+      <div className="no-print">
+        <BottomNav />
+      </div>
     </div>
+  );
+}
+
+/**
+ * PDF出力(印刷)専用の給与明細レイアウト。
+ * 通常時は非表示(.print-only)で、window.print()が呼ばれた時のみ表示される。
+ */
+function PrintableSalaryReport({
+  periodLabel,
+  salary,
+}: {
+  periodLabel: string;
+  salary: SalarySummary;
+}) {
+  return (
+    <div className="print-only p-8 text-black">
+      <h1 className="text-2xl font-bold mb-1">S'Argent 給与明細</h1>
+      <p className="text-sm mb-6">対象期間: {periodLabel}</p>
+
+      <table className="w-full text-sm border-collapse">
+        <tbody>
+          <PrintSalaryRow label="売上(施術金額ベース)" value={formatCurrency(salary.revenue)} />
+          <PrintSalaryRow label="売上の半分" value={formatCurrency(salary.half)} />
+          <PrintSalaryRow
+            label="税抜き変換後(1円未満切り上げ)"
+            value={formatCurrency(salary.taxExcludedHalf)}
+          />
+          <PrintSalaryRow
+            label={`指名ボーナス(500円 × ${salary.nominatedCount}件)`}
+            value={formatCurrency(salary.nominationBonus)}
+          />
+        </tbody>
+      </table>
+
+      <table className="w-full text-base border-collapse mt-6">
+        <tbody>
+          <tr className="border-t-2 border-black">
+            <td className="py-3 font-bold">給与合計</td>
+            <td className="py-3 text-right font-bold">{formatCurrency(salary.salary)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PrintSalaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <tr className="border-b border-gray-300">
+      <td className="py-1.5 pr-4 font-medium">{label}</td>
+      <td className="py-1.5 text-right">{value}</td>
+    </tr>
   );
 }
 
