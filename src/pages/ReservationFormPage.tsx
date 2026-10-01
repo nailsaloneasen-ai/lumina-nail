@@ -140,6 +140,13 @@ export default function ReservationFormPage() {
   }, [isEditMode, idParam]);
 
   const endTime = startTime ? calculateEndTime(startTime, durationMinutes) : '';
+  // 開始+施術時間が24:00以上になる(深夜0時をまたぐ)場合は、終了時間が翌日であることを表示する
+  const crossesMidnight =
+    startTime !== '' &&
+    (() => {
+      const [hours, minutes] = startTime.split(':').map(Number);
+      return hours * 60 + minutes + durationMinutes >= 24 * 60;
+    })();
 
   // --- 未保存の変更を検知する仕組み ---
   // 初期データの読み込み(編集モード時)による変更は「未保存」とみなさないよう、
@@ -287,7 +294,7 @@ export default function ReservationFormPage() {
         const overlaps = await findOverlappingReservations(
           date,
           startTime,
-          endTime,
+          durationMinutes,
           idParam,
         );
         if (overlaps.length > 0) {
@@ -397,7 +404,10 @@ export default function ReservationFormPage() {
           </div>
 
           {startTime && (
-            <p className="text-xs text-ink-soft -mt-2">終了時間(自動計算): {endTime}</p>
+            <p className="text-xs text-ink-soft -mt-2">
+              終了時間(自動計算): {crossesMidnight ? '翌日 ' : ''}
+              {endTime}
+            </p>
           )}
 
           {/* 顧客名・読み仮名 */}

@@ -20,6 +20,23 @@ describe('validateBackupPayload', () => {
     expect(validateBackupPayload({ ...base, reservations: [null] })).toBe(false);
   });
 
+  it('設定(通知先・予約媒体)あり・なしの両方を受け付ける(古いバックアップは設定なし)', () => {
+    expect(
+      validateBackupPayload({
+        ...base,
+        reservations: [],
+        settings: { notifications: { staffEmail: 'a@example.com' } },
+      }),
+    ).toBe(true);
+    expect(validateBackupPayload({ ...base, reservations: [] })).toBe(true);
+    expect(validateBackupPayload({ ...base, reservations: [], settings: 'x' })).toBe(
+      false,
+    );
+    expect(validateBackupPayload({ ...base, reservations: [], settings: null })).toBe(
+      false,
+    );
+  });
+
   it('形式が違うものを拒否する', () => {
     expect(validateBackupPayload(null)).toBe(false);
     expect(validateBackupPayload('text')).toBe(false);

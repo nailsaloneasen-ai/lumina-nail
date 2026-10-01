@@ -293,6 +293,52 @@ export async function softDeleteReservation(id: string, uid: string): Promise<vo
   });
 }
 
+/** "HH:mm" を、0時からの経過分数にする(不正な形式ならNaN) */
+function timeToMinutes(time: string): number {
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+/**
+ * 予約の「開始〜終了」を、0時からの経過分数で返す(開始時刻が未定ならnull)。
+ * 終了は「開始 + 施術時間」で求めるため、23:00開始・90分のように
+ * 深夜0時をまたぐ予約でも、終了が24:00(1440分)を超えた値として正しく扱える
+ * (終了時刻の文字列 "00:30" のまま比較すると、開始より前に見えて重複を見逃してしまう)。
+ * 施術時間が無い古いデータは、終了時刻の文字列から求める。
+ */
+export function reservationMinuteRange(reservation: {
+  startTime: string;
+  durationMinutes?: number;
+  endTime?: string;
+}): { start: number; end: number } | null {
+  if (!reservation.startTime) return null;
+  const start = timeToMinutes(reservation.startTime);
+  if (Number.isNaN(start)) return null;
+
+  let end: number;
+  if (reservation.durationMinutes && reservation.durationMinutes > 0) {
+    end = start + reservation.durationMinutes;
+  } else if (reservation.endTime) {
+    end = timeToMinutes(reservation.endTime);
+    if (Number.isNaN(end)) return null;
+    if (end < start) end += 24 * 60;
+  } else {
+    return null;
+  }
+  return { start, end };
+}
+
+/** 2つの予約の時間帯(同じ日付どうし)が重なっているか。ぴったり隣り合う場合は重複としない */
+export function isTimeOverlapping(
+  a: { startTime: string; durationMinutes?: number; endTime?: string },
+  b: { startTime: string; durationMinutes?: number; endTime?: string },
+): boolean {
+  const rangeA = reservationMinuteRange(a);
+  const rangeB = reservationMinuteRange(b);
+  if (!rangeA || !rangeB) return false;
+  return rangeA.start < rangeB.end && rangeA.end > rangeB.start;
+}
+
 /**
  * 指定した日付・時間帯に重複する予約があるかを一度だけ取得して判定する。
  * excludeId を指定すると、編集中の予約自身は重複判定から除外する。
@@ -300,7 +346,7 @@ export async function softDeleteReservation(id: string, uid: string): Promise<vo
 export async function findOverlappingReservations(
   date: string,
   startTime: string,
-  endTime: string,
+  durationMinutes: number,
   excludeId?: string,
 ): Promise<Reservation[]> {
   const q = query(
@@ -314,7 +360,7 @@ export async function findOverlappingReservations(
     .filter((r) => r.id !== excludeId);
 
   // 時間帯が重なっているか判定: 既存の開始 < 新しい終了 かつ 既存の終了 > 新しい開始
-  return reservations.filter((r) => r.startTime < endTime && r.endTime > startTime);
+  return reservations.filter((r) => isTimeOverlapping(r, { startTime, durationMinutes }));
 }
 
 /** 予約1件を一度だけ取得する(存在しない場合はnull) */

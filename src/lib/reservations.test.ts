@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getDayStatus, groupReservationsByDate, sumTodayRevenue } from './reservations';
+import {
+  getDayStatus,
+  groupReservationsByDate,
+  isTimeOverlapping,
+  sumTodayRevenue,
+} from './reservations';
 import type { Reservation } from '../types';
 
 function makeReservation(overrides: Partial<Reservation>): Reservation {
@@ -107,5 +112,61 @@ describe('sumTodayRevenue', () => {
 
   it('該当する予約が1件もない場合は0になる', () => {
     expect(sumTodayRevenue([])).toBe(0);
+  });
+});
+
+describe('isTimeOverlapping(予約時間の重複判定)', () => {
+  it('時間帯が重なっていれば重複', () => {
+    expect(
+      isTimeOverlapping(
+        { startTime: '10:00', durationMinutes: 60 },
+        { startTime: '10:30', durationMinutes: 60 },
+      ),
+    ).toBe(true);
+  });
+
+  it('ぴったり隣り合う(前の終了=次の開始)は重複としない', () => {
+    expect(
+      isTimeOverlapping(
+        { startTime: '10:00', durationMinutes: 60 },
+        { startTime: '11:00', durationMinutes: 60 },
+      ),
+    ).toBe(false);
+  });
+
+  it('深夜0時をまたぐ予約(23:00〜翌0:30)でも、同じ日の23:30開始と重複と判定できる', () => {
+    expect(
+      isTimeOverlapping(
+        { startTime: '23:00', durationMinutes: 90, endTime: '00:30' },
+        { startTime: '23:30', durationMinutes: 30 },
+      ),
+    ).toBe(true);
+  });
+
+  it('深夜0時をまたぐ予約でも、離れた時間帯とは重複しない', () => {
+    expect(
+      isTimeOverlapping(
+        { startTime: '23:00', durationMinutes: 90, endTime: '00:30' },
+        { startTime: '10:00', durationMinutes: 60 },
+      ),
+    ).toBe(false);
+  });
+
+  it('施術時間が無い古いデータは、終了時刻から時間帯を求める', () => {
+    expect(
+      isTimeOverlapping(
+        { startTime: '10:00', endTime: '11:00' },
+        { startTime: '10:30', durationMinutes: 30 },
+      ),
+    ).toBe(true);
+  });
+
+  it('開始時刻が未定の予約は重複判定の対象外', () => {
+    expect(
+      isTimeOverlapping(
+        { startTime: '', durationMinutes: 60 },
+        { startTime: '10:00', durationMinutes: 60 },
+      ),
+    ).toBe(false);
   });
 });

@@ -184,4 +184,12 @@ export interface BackupPayload {
   exportedAt: string;
   version: 1;
   reservations: Reservation[];
+  /**
+   * アプリの設定(通知先メールアドレス・予約媒体の選択肢)。
+   * 設定を追加する前に作ったバックアップには無いため、省略可能。
+   */
+  settings?: {
+    notifications?: Record<string, unknown>;
+    bookingSources?: Record<string, unknown>;
+  };
 }

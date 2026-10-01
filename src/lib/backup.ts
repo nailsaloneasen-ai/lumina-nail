@@ -1,8 +1,19 @@
-import { collection, doc, getDocsFromServer, writeBatch } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDocFromServer,
+  getDocsFromServer,
+  writeBatch,
+} from 'firebase/firestore';
 import { db } from './firebase';
 import type { BackupPayload, Reservation } from '../types';
 
 const RESERVATIONS_COLLECTION = 'reservations';
+const SETTINGS_COLLECTION = 'settings';
+
+/** バックアップに含める設定ドキュメント(settings/<ID>)。
+ *  backup(最終バックアップ日時)やmonthlySummary(送信済み月)は運用上の記録なので含めない */
+const BACKUP_SETTING_KEYS = ['notifications', 'bookingSources'] as const;
 
 /**
  * バックアップ(JSONエクスポート/インポート)ロジック
@@ -26,10 +37,21 @@ export async function exportBackupJson(): Promise<string> {
     (d) => ({ id: d.id, ...d.data() }) as Reservation,
   );
 
+  // 設定(通知先メールアドレス・予約媒体の選択肢)も一緒に保存する。
+  // 復元したときに、設定をもう一度入力し直さなくて済むようにするため。
+  const settings: NonNullable<BackupPayload['settings']> = {};
+  for (const key of BACKUP_SETTING_KEYS) {
+    const settingSnapshot = await getDocFromServer(doc(db, SETTINGS_COLLECTION, key));
+    if (settingSnapshot.exists()) {
+      settings[key] = settingSnapshot.data();
+    }
+  }
+
   const payload: BackupPayload = {
     exportedAt: new Date().toISOString(),
     version: 1,
     reservations,
+    settings,
   };
 
   return JSON.stringify(payload, null, 2);
@@ -51,13 +73,17 @@ export function validateBackupPayload(json: unknown): json is BackupPayload {
         r !== null &&
         typeof (r as { id?: unknown }).id === 'string' &&
         (r as { id: string }).id !== '',
-    )
+    ) &&
+    // 設定は省略可能(古いバックアップには無い)。あるなら、オブジェクトであること
+    (payload.settings === undefined ||
+      (typeof payload.settings === 'object' && payload.settings !== null))
   );
 }
 
 /**
  * バックアップJSONをFirestoreに書き戻す(復元)。
  * 同じIDの予約が既に存在する場合は上書きする(merge)。
+ * バックアップに設定(通知先・予約媒体)が含まれていれば、それも書き戻す。
  * Firestoreのバッチ書き込みは1回あたり最大500件のため、500件ごとに分割する。
  */
 export async function importBackupJson(payload: BackupPayload): Promise<number> {
@@ -74,6 +100,17 @@ export async function importBackupJson(payload: BackupPayload): Promise<number> 
     }
 
     await batch.commit();
+  }
+
+  if (payload.settings) {
+    const settingsBatch = writeBatch(db);
+    for (const key of BACKUP_SETTING_KEYS) {
+      const data = payload.settings[key];
+      if (data && typeof data === 'object') {
+        settingsBatch.set(doc(db, SETTINGS_COLLECTION, key), data, { merge: true });
+      }
+    }
+    await settingsBatch.commit();
   }
 
   return reservations.length;

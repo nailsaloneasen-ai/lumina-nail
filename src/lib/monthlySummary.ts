@@ -44,6 +44,27 @@ function previousMonthRange(now: Date) {
 }
 
 /**
+ * 前月分に未会計の予約が残っている間は、サマリーの送信を見送る日付の上限(日)。
+ * 月初に送ると、会計入力が済んでいない予約が売上に含まれず、
+ * 実際より少ない数字のメールが確定してしまう。そのため、未会計が残っている間は
+ * 次にアプリを開いたときまで待つ。ただし、会計を入れ忘れた予約が1件あるだけで
+ * 永久に届かないのを防ぐため、この日以降は未会計が残っていても送る。
+ */
+export const SUMMARY_DEFER_UNTIL_DAY = 10;
+
+/**
+ * 月次サマリーの送信を見送るべきかを判定する。
+ * (前月分に未会計の予約が残っていて、まだ猶予期間内の場合に true)
+ */
+export function shouldDeferMonthlySummary(
+  reservations: { isPaid: boolean }[],
+  now: Date,
+): boolean {
+  if (now.getDate() >= SUMMARY_DEFER_UNTIL_DAY) return false;
+  return reservations.some((r) => !r.isPaid);
+}
+
+/**
  * アプリを開いたタイミングで呼び出す。
  * 前月分のサマリーがまだ送信されていなければ送信する。
  */
@@ -61,6 +82,11 @@ export async function sendMonthlySummaryIfDue(): Promise<void> {
     if (!staffEmail) return; // 通知先が未登録ならスキップ
 
     const reservations = await getReservationsInRangeOnce(start, end);
+
+    // 未会計が残っているうちは送らず、次にアプリを開いたときに改めて判定する
+    // (送信済みとして記録する前に判定するので、後日ちゃんと送られる)
+    if (shouldDeferMonthlySummary(reservations, new Date())) return;
+
     const revenue = summarizeRevenue(reservations);
     const nomination = summarizeNomination(reservations);
     const salary = calculateStaffSalary(reservations);
