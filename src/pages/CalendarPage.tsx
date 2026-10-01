@@ -10,10 +10,8 @@ import {
   buildMonthGrid,
   buildWeekGrid,
   formatWeekRangeLabel,
-  monthDateRange,
   shiftMonth,
   shiftWeek,
-  weekDateRange,
 } from '../utils/calendar';
 import { getDayStatus } from '../lib/reservations';
 import { todayDateString } from '../utils/format';
@@ -54,8 +52,12 @@ export default function CalendarPage() {
 
   const todayString = todayDateString();
 
-  const range =
-    viewMode === 'month' ? monthDateRange(year, month) : weekDateRange(weekAnchor);
+  // 表示するマス全体(月表示では前後月の日付も含む)を取得範囲にする。
+  // 当月だけを取得すると、前後月の日付のマスが「予約なし」のように見えてしまい、
+  // たとえば月初に、前月末の未会計の予約(ピンク表示)に気づけない。
+  const cells =
+    viewMode === 'month' ? buildMonthGrid(year, month) : buildWeekGrid(weekAnchor);
+  const range = { start: cells[0].date, end: cells[cells.length - 1].date };
   const { reservationsByDate, isLoading, errorMessage } = useReservationsInRange(
     range.start,
     range.end,
@@ -66,9 +68,6 @@ export default function CalendarPage() {
     isRefreshing,
     touchHandlers: pullHandlers,
   } = usePullToRefresh(() => showToast('最新の状態です'));
-
-  const cells =
-    viewMode === 'month' ? buildMonthGrid(year, month) : buildWeekGrid(weekAnchor);
 
   function goToMonth(delta: number) {
     const next = shiftMonth(year, month, delta);
@@ -91,16 +90,20 @@ export default function CalendarPage() {
   }
 
   // --- スワイプ操作(左右にスワイプで前後の月/週へ移動) ---
-  const touchStartX = useRef<number | null>(null);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   function handleSwipeStart(e: TouchEvent<HTMLDivElement>) {
-    touchStartX.current = e.touches[0].clientX;
+    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
   }
 
   function handleSwipeEnd(e: TouchEvent<HTMLDivElement>) {
-    if (touchStartX.current === null) return;
-    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
-    touchStartX.current = null;
+    if (touchStart.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStart.current.x;
+    const deltaY = e.changedTouches[0].clientY - touchStart.current.y;
+    touchStart.current = null;
+
+    // 縦方向の動き(画面のスクロールなど)が大きいときは、横スワイプとして扱わない
+    if (Math.abs(deltaY) > Math.abs(deltaX)) return;
 
     if (deltaX > SWIPE_THRESHOLD) {
       goPrev(); // 右にスワイプ = 前へ
