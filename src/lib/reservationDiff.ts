@@ -18,6 +18,7 @@ export interface ReservationSnapshot {
   phoneDigits: string;
   priceAmount: number;
   isNominated: boolean;
+  bookingSource: string;
   memo: string;
 }
 
@@ -30,6 +31,7 @@ const FIELD_LABELS: Record<keyof ReservationSnapshot, string> = {
   phoneDigits: '電話番号',
   priceAmount: '施術金額',
   isNominated: '指名',
+  bookingSource: '予約媒体',
   memo: 'メモ',
 };
 

@@ -50,6 +50,13 @@ export interface Reservation {
   /** 指名(お客様が特定のスタッフを指名したかどうか) */
   isNominated: boolean;
 
+  /**
+   * 予約媒体(ホットペッパー・ミニモ・ネイリーなど、どこ経由の予約か)。
+   * 未設定(古いデータ、または直接予約)の場合は空文字。
+   * 選択肢は settings/bookingSources ドキュメントで管理する(設定画面で追加可能)。
+   */
+  bookingSource: string;
+
   // --- 会計情報 ---
   payment: PaymentInfo | null;
   isPaid: boolean;
@@ -155,6 +162,19 @@ export interface NominationSummary {
   notNominatedRevenue: number;
   /** 指名率(0〜100の数値、%表示用)。客数が0件の場合は0。 */
   nominationRate: number;
+}
+
+/** 予約媒体(ホットペッパー・ミニモ・ネイリーなど)ごとの集計 */
+export interface BookingSourceSummary {
+  /** 媒体名。未設定の予約は「未設定」としてまとめる */
+  source: string;
+  count: number;
+  /** 売上(施術金額ベース。summarizeRevenue等と同じ基準) */
+  revenue: number;
+  /** 支払い方法別の内訳(ホットペッパー・ミニモの詳細表示用) */
+  cashRevenue: number;
+  cardRevenue: number;
+  emoneyRevenue: number;
 }
 
 export type RevenuePeriod = 'today' | 'week' | 'month' | 'year' | 'custom';

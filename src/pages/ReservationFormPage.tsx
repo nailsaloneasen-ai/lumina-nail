@@ -21,6 +21,7 @@ import {
   getCustomerSuggestions,
   type CustomerSuggestion,
 } from '../lib/customers';
+import { getBookingSources } from '../lib/bookingSources';
 import { calculateEndTime, formatDateJP } from '../utils/format';
 
 /**
@@ -49,6 +50,7 @@ export default function ReservationFormPage() {
   const [phoneDigits, setPhoneDigits] = useState('');
   const [priceAmount, setPriceAmount] = useState(0);
   const [isNominated, setIsNominated] = useState(false);
+  const [bookingSource, setBookingSource] = useState('');
   const [memo, setMemo] = useState('');
 
   const [isInitialLoading, setIsInitialLoading] = useState(isEditMode);
@@ -66,6 +68,15 @@ export default function ReservationFormPage() {
     getCustomerSuggestions()
       .then(setCustomerSuggestions)
       .catch(() => setCustomerSuggestions([]));
+  }, []);
+
+  // 予約媒体の選択肢(設定画面で管理)
+  const [bookingSources, setBookingSourcesState] = useState<string[]>([]);
+
+  useEffect(() => {
+    getBookingSources()
+      .then(setBookingSourcesState)
+      .catch(() => setBookingSourcesState([]));
   }, []);
 
   // 編集モードで読み込んだ「変更前」の値のスナップショット(変更通知の差分作成用)
@@ -88,6 +99,7 @@ export default function ReservationFormPage() {
       // 今回の機能追加より前に作成された予約にはisNominatedフィールド自体が
       // 存在しないため(Firestore上はundefined)、falseにフォールバックする
       setIsNominated(reservation.isNominated ?? false);
+      setBookingSource(reservation.bookingSource ?? '');
       setMemo(reservation.memo);
       originalSnapshotRef.current = {
         date: reservation.date,
@@ -98,6 +110,7 @@ export default function ReservationFormPage() {
         phoneDigits: reservation.phoneNumber.replace(/\D/g, ''),
         priceAmount: reservation.priceAmount,
         isNominated: reservation.isNominated ?? false,
+        bookingSource: reservation.bookingSource ?? '',
         memo: reservation.memo,
       };
       setIsInitialLoading(false);
@@ -133,6 +146,7 @@ export default function ReservationFormPage() {
     phoneDigits,
     priceAmount,
     isNominated,
+    bookingSource,
     memo,
   ]);
 
@@ -176,6 +190,7 @@ export default function ReservationFormPage() {
       endTime,
       priceAmount,
       isNominated,
+      bookingSource,
       memo,
     };
 
@@ -197,6 +212,7 @@ export default function ReservationFormPage() {
                 phoneDigits,
                 priceAmount,
                 isNominated,
+                bookingSource,
                 memo,
               })
             : [];
@@ -443,6 +459,28 @@ export default function ReservationFormPage() {
               />
             </span>
           </button>
+
+          {/* 予約媒体 */}
+          <div>
+            <label htmlFor="bookingSource" className="block text-sm text-ink-soft mb-1.5">
+              予約媒体
+            </label>
+            <select
+              id="bookingSource"
+              value={bookingSource}
+              onChange={(e) => setBookingSource(e.target.value)}
+              className="w-full rounded-xl border border-lumina-blush bg-white/80 px-4 py-3
+                         text-base text-ink outline-none focus:border-lumina-pink-deep
+                         focus:ring-2 focus:ring-lumina-pink/40"
+            >
+              <option value="">指定なし</option>
+              {bookingSources.map((source) => (
+                <option key={source} value={source}>
+                  {source}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {/* メモ */}
           <div>

@@ -1,5 +1,6 @@
 import { toDateString } from '../utils/format';
 import type {
+  BookingSourceSummary,
   NominationSummary,
   PaymentMethod,
   Reservation,
@@ -237,5 +238,60 @@ export function filterByNomination(
         r.payment.isRevenueTarget &&
         r.isNominated === isNominated,
     )
+    .sort((a, b) => (b.date + b.startTime).localeCompare(a.date + a.startTime));
+}
+
+/** 予約媒体が未設定(空文字)の予約をまとめる際の表示ラベル */
+export const UNSPECIFIED_BOOKING_SOURCE_LABEL = '未設定';
+
+/**
+ * 予約一覧を予約媒体(ホットペッパー・ミニモ・ネイリーなど)ごとに集計する。
+ * 集計対象は summarizeRevenue と同じく「会計済み・売上対象」の予約のみ。
+ * 売上は施術金額(priceAmount)ベース。媒体未設定の予約は「未設定」としてまとめる。
+ * 売上の多い順に並べて返す。
+ */
+export function summarizeBySource(reservations: Reservation[]): BookingSourceSummary[] {
+  const targetReservations = reservations.filter(
+    (r) => r.isPaid && r.payment && r.payment.isRevenueTarget,
+  );
+
+  const bySource = new Map<
+    string,
+    { count: number; revenue: number; cashRevenue: number; cardRevenue: number; emoneyRevenue: number }
+  >();
+
+  for (const reservation of targetReservations) {
+    const source = reservation.bookingSource || UNSPECIFIED_BOOKING_SOURCE_LABEL;
+    const current = bySource.get(source) ?? {
+      count: 0,
+      revenue: 0,
+      cashRevenue: 0,
+      cardRevenue: 0,
+      emoneyRevenue: 0,
+    };
+    current.count += 1;
+    current.revenue += reservation.priceAmount;
+
+    const method = reservation.payment!.method;
+    if (method === 'cash') current.cashRevenue += reservation.priceAmount;
+    else if (method === 'card') current.cardRevenue += reservation.priceAmount;
+    else if (method === 'emoney') current.emoneyRevenue += reservation.priceAmount;
+
+    bySource.set(source, current);
+  }
+
+  return Array.from(bySource.entries())
+    .map(([source, values]) => ({ source, ...values }))
+    .sort((a, b) => b.revenue - a.revenue);
+}
+
+/** 指定した予約媒体の予約一覧を、新しい順に絞り込む(詳細モーダル用) */
+export function filterBySource(reservations: Reservation[], source: string): Reservation[] {
+  return reservations
+    .filter((r) => {
+      if (!r.isPaid || !r.payment || !r.payment.isRevenueTarget) return false;
+      const reservationSource = r.bookingSource || UNSPECIFIED_BOOKING_SOURCE_LABEL;
+      return reservationSource === source;
+    })
     .sort((a, b) => (b.date + b.startTime).localeCompare(a.date + a.startTime));
 }

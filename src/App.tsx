@@ -33,6 +33,7 @@ const ReservationHistoryPage = lazy(() => import('./pages/ReservationHistoryPage
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const PasswordChangePage = lazy(() => import('./pages/PasswordChangePage'));
 const NotificationSettingsPage = lazy(() => import('./pages/NotificationSettingsPage'));
+const BookingSourcesSettingsPage = lazy(() => import('./pages/BookingSourcesSettingsPage'));
 const BackupPage = lazy(() => import('./pages/BackupPage'));
 const TrashPage = lazy(() => import('./pages/TrashPage'));
 
@@ -89,6 +90,7 @@ function AppContent() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/settings/password" element={<PasswordChangePage />} />
             <Route path="/settings/notifications" element={<NotificationSettingsPage />} />
+            <Route path="/settings/booking-sources" element={<BookingSourcesSettingsPage />} />
             <Route path="/settings/backup" element={<BackupPage />} />
             <Route path="/settings/trash" element={<TrashPage />} />
           </Routes>

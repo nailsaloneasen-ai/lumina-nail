@@ -8,8 +8,10 @@ import { useRevenueData } from '../hooks/useRevenueData';
 import {
   dateRangeForPeriod,
   filterByNomination,
+  filterBySource,
   filterPaidByMethod,
   filterPointsUsage,
+  summarizeBySource,
   summarizeNomination,
 } from '../lib/revenue';
 import { downloadCsvFile, generateRevenueCsv } from '../lib/csvExport';
@@ -27,6 +29,13 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   card: 'カード',
   emoney: '電子マネー',
 };
+
+/**
+ * 予約媒体別統計で、支払い方法別の内訳まで表示する媒体名。
+ * ネイリーは事前決済のため対象外(総額のみ表示)。
+ * ※設定画面でこの名称自体を変更すると、詳細表示の対象から外れる点に注意。
+ */
+const DETAILED_BREAKDOWN_SOURCES = new Set(['ホットペッパー', 'ミニモ']);
 
 const PERIOD_LABELS: Record<RevenuePeriod, string> = {
   today: '今日',
@@ -52,6 +61,7 @@ export default function RevenuePage() {
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [showPointsDetail, setShowPointsDetail] = useState(false);
   const [selectedNomination, setSelectedNomination] = useState<boolean | null>(null);
+  const [selectedSource, setSelectedSource] = useState<string | null>(null);
 
   // 期間指定(custom)の場合はカスタム日付を、それ以外はプリセット期間から範囲を計算する。
   // 終了日が開始日より前になっていたら、開始日と同じ日にそろえる(安全策)。
@@ -75,6 +85,7 @@ export default function RevenuePage() {
       : PERIOD_LABELS[period];
 
   const nomination = summarizeNomination(reservations);
+  const bySource = summarizeBySource(reservations);
 
   function handleExportCsv() {
     const csv = generateRevenueCsv(reservations);
@@ -255,6 +266,62 @@ export default function RevenuePage() {
           </div>
         </div>
 
+        {/* 予約媒体別統計(ホットペッパー・ミニモ・ネイリーなど) */}
+        {bySource.length > 0 && (
+          <div className="glass-card p-5">
+            <p className="text-sm font-medium text-ink mb-4">予約媒体別({periodLabel})</p>
+            <div className="space-y-3">
+              {bySource.map((item) =>
+                DETAILED_BREAKDOWN_SOURCES.has(item.source) ? (
+                  <div
+                    key={item.source}
+                    className="rounded-xl bg-white/70 px-4 py-3 border border-lumina-blush"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSource(item.source)}
+                      className="w-full flex items-center justify-between"
+                    >
+                      <span className="text-sm text-ink">
+                        {item.source}
+                        <span className="text-xs text-ink-soft ml-2">{item.count}件</span>
+                      </span>
+                      <span className="text-sm font-medium text-ink">
+                        {formatCurrency(item.revenue)}
+                      </span>
+                    </button>
+                    <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-lumina-blush text-center">
+                      <SourceMethodBreakdown label="現金" value={item.cashRevenue} />
+                      <SourceMethodBreakdown label="カード" value={item.cardRevenue} />
+                      <SourceMethodBreakdown label="電子マネー" value={item.emoneyRevenue} />
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    key={item.source}
+                    type="button"
+                    onClick={() => setSelectedSource(item.source)}
+                    className="w-full flex items-center justify-between rounded-xl bg-white/70
+                               px-4 py-3 active:bg-lumina-blush/40 transition-colors"
+                  >
+                    <span className="text-sm text-ink">
+                      {item.source}
+                      <span className="text-xs text-ink-soft ml-2">{item.count}件</span>
+                    </span>
+                    <span className="text-sm font-medium text-ink">
+                      {formatCurrency(item.revenue)}
+                    </span>
+                  </button>
+                ),
+              )}
+            </div>
+            <p className="text-[11px] text-ink-soft mt-3">
+              ※ホットペッパー・ミニモのみ、支払い方法別の内訳を表示しています。
+              ネイリーは事前決済のため総額のみです。
+            </p>
+          </div>
+        )}
+
         {/* データ出力(CSV/PDF) */}
         <div className="no-print flex gap-3">
           <button
@@ -331,6 +398,16 @@ export default function RevenuePage() {
           periodLabel={periodLabel}
           entries={filterByNomination(reservations, selectedNomination)}
           onClose={() => setSelectedNomination(null)}
+          onSelectReservation={(id) => navigate(`/reservation/${id}`)}
+        />
+      )}
+
+      {selectedSource !== null && (
+        <SourceDetailModal
+          source={selectedSource}
+          periodLabel={periodLabel}
+          entries={filterBySource(reservations, selectedSource)}
+          onClose={() => setSelectedSource(null)}
           onSelectReservation={(id) => navigate(`/reservation/${id}`)}
         />
       )}
@@ -450,6 +527,16 @@ function PrintSummaryRow({ label, value }: { label: string; value: string }) {
 function formatShortDate(dateString: string): string {
   const [, month, day] = dateString.split('-').map(Number);
   return `${month}/${day}`;
+}
+
+/** 予約媒体別カードの中で使う、支払い方法1つ分の小さな内訳表示 */
+function SourceMethodBreakdown({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <p className="text-[10px] text-ink-soft mb-0.5">{label}</p>
+      <p className="text-xs font-medium text-ink">{formatCurrency(value)}</p>
+    </div>
+  );
 }
 
 function SummaryItem({
@@ -675,6 +762,89 @@ function NominationDetailModal({
           <div>
             <p className="text-xs text-ink-soft">
               {periodLabel} ・ 指名{isNominated ? 'あり' : 'なし'}の内訳(売上)
+            </p>
+            <p className="text-xl text-ink" style={{ fontFamily: 'var(--font-display)' }}>
+              {formatCurrency(total)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="閉じる"
+            className="h-8 w-8 flex items-center justify-center rounded-full text-ink-soft
+                       active:bg-lumina-blush/40"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="px-5 pb-5 overflow-y-auto space-y-2">
+          {entries.length === 0 ? (
+            <p className="text-sm text-ink-soft text-center py-6">
+              この期間、該当する予約はありません
+            </p>
+          ) : (
+            entries.map((reservation) => (
+              <button
+                key={reservation.id}
+                type="button"
+                onClick={() => onSelectReservation(reservation.id)}
+                className="w-full flex items-center justify-between gap-3 rounded-xl
+                           bg-white/70 px-4 py-3 text-left active:bg-lumina-blush/40 transition-colors"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-ink truncate">
+                    {reservation.customerName}
+                  </p>
+                  <p className="text-xs text-ink-soft truncate">
+                    {formatDateJP(reservation.date)}
+                    {reservation.startTime && ` ${reservation.startTime}`}
+                  </p>
+                </div>
+                <p className="shrink-0 text-sm font-medium text-ink">
+                  {formatCurrency(reservation.priceAmount)}
+                </p>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 予約媒体別の内訳詳細モーダル。
+ * 各媒体(ホットペッパー・ミニモ・ネイリーなど)をタップすると、
+ * 該当する予約(誰がいつ)を一覧表示する。
+ */
+function SourceDetailModal({
+  source,
+  periodLabel,
+  entries,
+  onClose,
+  onSelectReservation,
+}: {
+  source: string;
+  periodLabel: string;
+  entries: ReturnType<typeof filterBySource>;
+  onClose: () => void;
+  onSelectReservation: (id: string) => void;
+}) {
+  const total = entries.reduce((sum, r) => sum + r.priceAmount, 0);
+
+  return (
+    <div
+      className="no-print fixed inset-0 z-50 flex items-end sm:items-center justify-center
+                 bg-ink/30 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="glass-card w-full max-w-sm bg-white/95 max-h-[80vh] flex flex-col">
+        <div className="p-5 pb-3 flex items-center justify-between shrink-0">
+          <div>
+            <p className="text-xs text-ink-soft">
+              {periodLabel} ・ {source}の内訳(売上)
             </p>
             <p className="text-xl text-ink" style={{ fontFamily: 'var(--font-display)' }}>
               {formatCurrency(total)}

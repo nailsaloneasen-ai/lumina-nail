@@ -204,6 +204,7 @@ export interface ReservationInput {
   priceAmount: number;
   memo: string;
   isNominated: boolean;
+  bookingSource: string;
 }
 
 /** 新規予約をFirestoreに作成する */

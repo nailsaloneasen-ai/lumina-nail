@@ -3,9 +3,11 @@ import {
   calculateStaffSalary,
   dateRangeForPeriod,
   filterByNomination,
+  filterBySource,
   filterPaidByMethod,
   filterPointsUsage,
   filterUnpaidReservations,
+  summarizeBySource,
   summarizeNomination,
   summarizeRevenue,
 } from './revenue';
@@ -28,6 +30,7 @@ function makeReservation(overrides: Partial<Reservation>): Reservation {
     priceAmount: 8000,
     memo: '',
     isNominated: false,
+    bookingSource: '',
     payment: null,
     isPaid: false,
     isDeleted: false,
@@ -508,5 +511,141 @@ describe('calculateStaffSalary', () => {
     expect(result.nominatedCount).toBe(0);
     expect(result.nominationBonus).toBe(0);
     expect(result.salary).toBe(0);
+  });
+});
+
+describe('summarizeBySource', () => {
+  it('予約媒体ごとに客数・売上・支払い方法別の内訳を集計する', () => {
+    const reservations = [
+      makeReservation({
+        id: '1',
+        priceAmount: 6000,
+        bookingSource: 'ホットペッパー',
+        isPaid: true,
+        payment: {
+          pointsUsed: 0,
+          paidAmount: 6000,
+          method: 'cash',
+          isRevenueTarget: true,
+          paidAt: '',
+          paidBy: '',
+        },
+      }),
+      makeReservation({
+        id: '2',
+        priceAmount: 4000,
+        bookingSource: 'ホットペッパー',
+        isPaid: true,
+        payment: {
+          pointsUsed: 0,
+          paidAmount: 4000,
+          method: 'card',
+          isRevenueTarget: true,
+          paidAt: '',
+          paidBy: '',
+        },
+      }),
+      makeReservation({
+        id: '3',
+        priceAmount: 5000,
+        bookingSource: 'ミニモ',
+        isPaid: true,
+        payment: {
+          pointsUsed: 0,
+          paidAmount: 5000,
+          method: 'emoney',
+          isRevenueTarget: true,
+          paidAt: '',
+          paidBy: '',
+        },
+      }),
+      makeReservation({
+        id: '4',
+        priceAmount: 3000,
+        bookingSource: '', // 未設定
+        isPaid: true,
+        payment: {
+          pointsUsed: 0,
+          paidAmount: 3000,
+          method: 'cash',
+          isRevenueTarget: true,
+          paidAt: '',
+          paidBy: '',
+        },
+      }),
+    ];
+
+    const result = summarizeBySource(reservations);
+
+    // 売上の多い順(ホットペッパー10000 > ミニモ5000 > 未設定3000)
+    expect(result.map((r) => r.source)).toEqual(['ホットペッパー', 'ミニモ', '未設定']);
+
+    const hotPepper = result.find((r) => r.source === 'ホットペッパー')!;
+    expect(hotPepper.count).toBe(2);
+    expect(hotPepper.revenue).toBe(10000);
+    expect(hotPepper.cashRevenue).toBe(6000);
+    expect(hotPepper.cardRevenue).toBe(4000);
+    expect(hotPepper.emoneyRevenue).toBe(0);
+
+    const minimo = result.find((r) => r.source === 'ミニモ')!;
+    expect(minimo.revenue).toBe(5000);
+    expect(minimo.emoneyRevenue).toBe(5000);
+  });
+
+  it('該当する予約が1件もない場合は空配列を返す', () => {
+    expect(summarizeBySource([])).toEqual([]);
+  });
+});
+
+describe('filterBySource', () => {
+  it('指定した予約媒体の予約だけを新しい順に絞り込む', () => {
+    const reservations = [
+      makeReservation({
+        id: 'old',
+        date: '2026-07-01',
+        bookingSource: 'ホットペッパー',
+        isPaid: true,
+        payment: {
+          pointsUsed: 0,
+          paidAmount: 6000,
+          method: 'cash',
+          isRevenueTarget: true,
+          paidAt: '',
+          paidBy: '',
+        },
+      }),
+      makeReservation({
+        id: 'new',
+        date: '2026-07-10',
+        bookingSource: 'ホットペッパー',
+        isPaid: true,
+        payment: {
+          pointsUsed: 0,
+          paidAmount: 6000,
+          method: 'cash',
+          isRevenueTarget: true,
+          paidAt: '',
+          paidBy: '',
+        },
+      }),
+      makeReservation({
+        id: 'other-source',
+        date: '2026-07-15',
+        bookingSource: 'ミニモ',
+        isPaid: true,
+        payment: {
+          pointsUsed: 0,
+          paidAmount: 5000,
+          method: 'cash',
+          isRevenueTarget: true,
+          paidAt: '',
+          paidBy: '',
+        },
+      }),
+    ];
+
+    const result = filterBySource(reservations, 'ホットペッパー');
+
+    expect(result.map((r) => r.id)).toEqual(['new', 'old']);
   });
 });

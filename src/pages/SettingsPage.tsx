@@ -41,6 +41,11 @@ export default function SettingsPage() {
       to: '/settings/notifications',
     },
     {
+      label: '予約媒体の管理',
+      description: 'ホットペッパー・ミニモ・ネイリーなど、予約媒体の選択肢を追加・削除',
+      to: '/settings/booking-sources',
+    },
+    {
       label: 'パスワード変更',
       description: 'ログイン中のアカウントのパスワードを変更します',
       to: '/settings/password',

@@ -11,6 +11,7 @@ function makeSnapshot(overrides: Partial<ReservationSnapshot> = {}): Reservation
     phoneDigits: '09012345678',
     priceAmount: 8000,
     isNominated: false,
+    bookingSource: '',
     memo: '',
     ...overrides,
   };
