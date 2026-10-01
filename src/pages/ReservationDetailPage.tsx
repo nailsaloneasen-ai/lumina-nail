@@ -95,7 +95,11 @@ export default function ReservationDetailPage() {
       const deletedDate = reservation.date;
       showToast('削除しました', {
         actionLabel: '元に戻す',
-        onAction: () => void restoreReservation(id, user.uid),
+        onAction: () => {
+          restoreReservation(id, user.uid).catch(() => {
+            showToast('元に戻せませんでした。設定のゴミ箱から復元してください');
+          });
+        },
         durationMs: 5000,
       });
       navigate(`/reservations/${deletedDate}`);
@@ -117,6 +121,9 @@ export default function ReservationDetailPage() {
       await updateReservationMemo(id, memoDraft, user.uid);
       setIsEditingMemo(false);
       showToast('メモを保存しました');
+    } catch {
+      // 失敗した場合は編集中の内容を残したまま、保存できなかったことを知らせる
+      showToast('メモの保存に失敗しました。通信環境をご確認ください');
     } finally {
       setIsSavingMemo(false);
     }
@@ -380,7 +387,10 @@ function PrintableReservationReceipt({ reservation }: { reservation: Reservation
             <PrintRow label="読み仮名" value={reservation.customerKana} />
           )}
           {reservation.phoneNumber && (
-            <PrintRow label="電話番号" value={formatPhoneNumber(reservation.phoneNumber)} />
+            <PrintRow
+              label="電話番号"
+              value={formatPhoneNumber(reservation.phoneNumber)}
+            />
           )}
           <PrintRow label="開始時間" value={reservation.startTime || '未定'} />
           <PrintRow label="施術時間" value={`${reservation.durationMinutes}分`} />

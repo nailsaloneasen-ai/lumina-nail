@@ -22,15 +22,24 @@ export default function ReservationListPage() {
   const { user } = useAuth();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const isOwner = user?.role === 'owner';
 
   useEffect(() => {
     if (!date) return;
-    const unsubscribe = subscribeReservationsByDate(date, (data) => {
-      setReservations(data);
-      setIsLoading(false);
-    });
+    const unsubscribe = subscribeReservationsByDate(
+      date,
+      (data) => {
+        setReservations(data);
+        setIsLoading(false);
+        setErrorMessage(null);
+      },
+      () => {
+        setIsLoading(false);
+        setErrorMessage('予約データの取得に失敗しました。通信環境をご確認ください。');
+      },
+    );
     return unsubscribe;
   }, [date]);
 
@@ -69,7 +78,13 @@ export default function ReservationListPage() {
         <div className="glass-card p-5">
           {isLoading && <ReservationListSkeleton />}
 
-          {!isLoading && reservations.length === 0 && (
+          {errorMessage && (
+            <p className="text-sm text-lumina-pink-deep py-6 text-center">
+              {errorMessage}
+            </p>
+          )}
+
+          {!isLoading && !errorMessage && reservations.length === 0 && (
             <p className="text-sm text-ink-soft py-6 text-center">
               この日の予約はありません
             </p>
@@ -102,9 +117,7 @@ export default function ReservationListPage() {
       </main>
 
       {/* 印刷(PDF出力)専用の予約表。画面上には表示されず、印刷時にのみ表示される */}
-      {!isLoading && (
-        <PrintableReservationList date={date} reservations={reservations} />
-      )}
+      {!isLoading && <PrintableReservationList date={date} reservations={reservations} />}
 
       <div className="no-print">
         <BottomNav />
@@ -124,9 +137,7 @@ function PrintableReservationList({
   date: string;
   reservations: Reservation[];
 }) {
-  const sorted = [...reservations].sort((a, b) =>
-    a.startTime.localeCompare(b.startTime),
-  );
+  const sorted = [...reservations].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   return (
     <div className="print-only p-8 text-black">

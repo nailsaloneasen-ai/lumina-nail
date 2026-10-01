@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useReservation } from '../hooks/useReservation';
-import { saveReservationPayment, updateReservationMemo } from '../lib/reservations';
+import { saveReservationPayment } from '../lib/reservations';
 import { formatCurrency } from '../utils/format';
 import type { AppUser, PaymentMethod, Reservation } from '../types';
 
@@ -122,12 +122,9 @@ function AccountingForm({
         isPaidChecked,
         user.uid,
         user.displayName,
+        // メモは全ユーザーがこの画面から編集可能。変更があれば会計と同時に(まとめて)保存する
+        memo !== reservation.memo ? memo : undefined,
       );
-
-      // メモは全ユーザーがこの画面から編集可能なため、変更があれば併せて保存する
-      if (memo !== reservation.memo) {
-        await updateReservationMemo(id, memo, user.uid);
-      }
 
       navigate(`/reservation/${id}`);
       showToast('会計を保存しました');

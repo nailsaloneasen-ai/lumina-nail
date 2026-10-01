@@ -4,12 +4,14 @@ import {
   doc,
   getDoc,
   getDocs,
+  getDocsFromServer,
   limit,
   onSnapshot,
   orderBy,
   query,
   updateDoc,
   where,
+  writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from './firebase';
@@ -119,25 +121,25 @@ export function subscribeReservationsByDateRange(
  * 期間指定の予約データを1回だけ取得する(リアルタイム購読はしない)。
  * 月末サマリーメールなど、Reactコンポーネントの外(lib層)から
  * 1度きりデータが欲しい場合に使う。
+ *
+ * 【重要】onSnapshotの最初の通知は、端末のキャッシュ(オフライン用の保存データ)から
+ * 返されることがある。キャッシュには「過去にこの端末で開いた予約」しか入っていないため、
+ * それを集計すると売上や客数が実際より少ないサマリーが作られてしまう。
+ * 集計に使うデータは必ずサーバーから取得する(オフライン時はエラーになり、
+ * 呼び出し側は何も送らず次回に持ち越す)。
  */
-export function getReservationsInRangeOnce(
+export async function getReservationsInRangeOnce(
   start: string,
   end: string,
 ): Promise<Reservation[]> {
-  return new Promise((resolve, reject) => {
-    const unsubscribe = subscribeReservationsByDateRange(
-      start,
-      end,
-      (reservations) => {
-        unsubscribe();
-        resolve(reservations);
-      },
-      (error) => {
-        unsubscribe();
-        reject(error);
-      },
-    );
-  });
+  const q = query(
+    reservationsCollectionRef(),
+    where('date', '>=', start),
+    where('date', '<=', end),
+    where('isDeleted', '==', false),
+  );
+  const snapshot = await getDocsFromServer(q);
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Reservation);
 }
 
 /**
@@ -332,8 +334,14 @@ function paymentHistoryCollectionRef(reservationId: string) {
  * 保存と同時に修正履歴(変更前・変更後)を記録する。
  * 予約時点で未定だった施術金額を、会計時にあわせて確定させることもできる。
  *
+ * 予約本体の更新・修正履歴の追加・メモの更新は、1回のバッチ書き込みでまとめて行う。
+ * 別々に書き込むと、途中で通信が切れた場合に「会計は保存されたのに履歴がない」
+ * 「会計は保存されたのにメモが保存されず、エラー表示で再保存して履歴が二重になる」
+ * といった中途半端な状態になるため、すべて成功するか、すべて失敗するかのどちらかにする。
+ *
  * @param priceAmount 施術金額(会計時に確定・修正した値)
  * @param isPaidChecked 「会計済」チェックボックスの状態
+ * @param memo メモを変更する場合のみ指定する(省略時はメモを変更しない)
  */
 export async function saveReservationPayment(
   reservationId: string,
@@ -343,14 +351,17 @@ export async function saveReservationPayment(
   isPaidChecked: boolean,
   uid: string,
   displayName: string,
+  memo?: string,
 ): Promise<void> {
   const now = new Date().toISOString();
+  const batch = writeBatch(db);
 
   // 予約本体を更新
-  await updateDoc(doc(db, RESERVATIONS_COLLECTION, reservationId), {
+  batch.update(doc(db, RESERVATIONS_COLLECTION, reservationId), {
     payment: newPayment,
     priceAmount,
     isPaid: isPaidChecked,
+    ...(memo !== undefined ? { memo } : {}),
     updatedAt: now,
     updatedBy: uid,
   });
@@ -364,7 +375,9 @@ export async function saveReservationPayment(
     before: previousPayment,
     after: newPayment,
   };
-  await addDoc(paymentHistoryCollectionRef(reservationId), historyEntry);
+  batch.set(doc(paymentHistoryCollectionRef(reservationId)), historyEntry);
+
+  await batch.commit();
 }
 
 /** 検索1回あたり、各クエリ(顧客名/読み仮名)ごとに取得する最大件数 */

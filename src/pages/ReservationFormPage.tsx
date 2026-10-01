@@ -19,6 +19,7 @@ import { buildChangeSummary, type ReservationSnapshot } from '../lib/reservation
 import {
   filterCustomerSuggestions,
   getCustomerSuggestions,
+  invalidateCustomerSuggestions,
   type CustomerSuggestion,
 } from '../lib/customers';
 import { getBookingSources } from '../lib/bookingSources';
@@ -54,6 +55,7 @@ export default function ReservationFormPage() {
   const [memo, setMemo] = useState('');
 
   const [isInitialLoading, setIsInitialLoading] = useState(isEditMode);
+  const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingOverlapSave, setPendingOverlapSave] = useState(false);
@@ -61,7 +63,9 @@ export default function ReservationFormPage() {
   const [pendingNotifyConfirm, setPendingNotifyConfirm] = useState(false);
 
   // 顧客名の入力補完(オートコンプリート)
-  const [customerSuggestions, setCustomerSuggestions] = useState<CustomerSuggestion[]>([]);
+  const [customerSuggestions, setCustomerSuggestions] = useState<CustomerSuggestion[]>(
+    [],
+  );
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   useEffect(() => {
@@ -87,34 +91,48 @@ export default function ReservationFormPage() {
     if (!isEditMode || !idParam) return;
 
     let isCancelled = false;
-    getReservationOnce(idParam).then((reservation) => {
-      if (isCancelled || !reservation) return;
-      setDate(reservation.date);
-      setStartTime(reservation.startTime);
-      setDurationMinutes(reservation.durationMinutes);
-      setCustomerName(reservation.customerName);
-      setCustomerKana(reservation.customerKana);
-      setPhoneDigits(reservation.phoneNumber.replace(/\D/g, ''));
-      setPriceAmount(reservation.priceAmount);
-      // 今回の機能追加より前に作成された予約にはisNominatedフィールド自体が
-      // 存在しないため(Firestore上はundefined)、falseにフォールバックする
-      setIsNominated(reservation.isNominated ?? false);
-      setBookingSource(reservation.bookingSource ?? '');
-      setMemo(reservation.memo);
-      originalSnapshotRef.current = {
-        date: reservation.date,
-        startTime: reservation.startTime,
-        durationMinutes: reservation.durationMinutes,
-        customerName: reservation.customerName,
-        customerKana: reservation.customerKana,
-        phoneDigits: reservation.phoneNumber.replace(/\D/g, ''),
-        priceAmount: reservation.priceAmount,
-        isNominated: reservation.isNominated ?? false,
-        bookingSource: reservation.bookingSource ?? '',
-        memo: reservation.memo,
-      };
-      setIsInitialLoading(false);
-    });
+    getReservationOnce(idParam)
+      .then((reservation) => {
+        if (isCancelled) return;
+        if (!reservation) {
+          // 予約が存在しない(削除済み・URLの誤り)場合に「読み込み中…」のまま固まらないようにする
+          setLoadErrorMessage('この予約は見つかりませんでした');
+          setIsInitialLoading(false);
+          return;
+        }
+        setDate(reservation.date);
+        setStartTime(reservation.startTime);
+        setDurationMinutes(reservation.durationMinutes);
+        setCustomerName(reservation.customerName);
+        setCustomerKana(reservation.customerKana);
+        setPhoneDigits(reservation.phoneNumber.replace(/\D/g, ''));
+        setPriceAmount(reservation.priceAmount);
+        // 今回の機能追加より前に作成された予約にはisNominatedフィールド自体が
+        // 存在しないため(Firestore上はundefined)、falseにフォールバックする
+        setIsNominated(reservation.isNominated ?? false);
+        setBookingSource(reservation.bookingSource ?? '');
+        setMemo(reservation.memo);
+        originalSnapshotRef.current = {
+          date: reservation.date,
+          startTime: reservation.startTime,
+          durationMinutes: reservation.durationMinutes,
+          customerName: reservation.customerName,
+          customerKana: reservation.customerKana,
+          phoneDigits: reservation.phoneNumber.replace(/\D/g, ''),
+          priceAmount: reservation.priceAmount,
+          isNominated: reservation.isNominated ?? false,
+          bookingSource: reservation.bookingSource ?? '',
+          memo: reservation.memo,
+        };
+        setIsInitialLoading(false);
+      })
+      .catch(() => {
+        if (isCancelled) return;
+        setLoadErrorMessage(
+          '予約データの読み込みに失敗しました。通信環境をご確認ください。',
+        );
+        setIsInitialLoading(false);
+      });
 
     return () => {
       isCancelled = true;
@@ -199,6 +217,7 @@ export default function ReservationFormPage() {
       if (isEditMode && idParam) {
         await updateReservationDetails(idParam, input, user.uid);
         isDirtyRef.current = false;
+        invalidateCustomerSuggestions();
 
         if (notifyStaff) {
           const before = originalSnapshotRef.current;
@@ -231,6 +250,7 @@ export default function ReservationFormPage() {
       } else {
         const newId = await createReservation(input, user.uid);
         isDirtyRef.current = false;
+        invalidateCustomerSuggestions();
         showToast('予約を登録しました');
         navigate(`/reservation/${newId}`);
       }
@@ -242,6 +262,7 @@ export default function ReservationFormPage() {
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (isSaving) return; // 二重タップによる二重登録を防ぐ
     setErrorMessage(null);
 
     if (!isOnline) {
@@ -258,16 +279,28 @@ export default function ReservationFormPage() {
     }
 
     // 開始時間が指定されている場合のみ重複チェックを行う
+    // (確認中も保存ボタンを無効にして、二重タップで二重登録されないようにする。
+    //  通信エラー時に画面が無反応のままにならないよう、失敗は画面に表示する)
     if (startTime) {
-      const overlaps = await findOverlappingReservations(
-        date,
-        startTime,
-        endTime,
-        idParam,
-      );
-      if (overlaps.length > 0) {
-        setPendingOverlapSave(true);
+      setIsSaving(true);
+      try {
+        const overlaps = await findOverlappingReservations(
+          date,
+          startTime,
+          endTime,
+          idParam,
+        );
+        if (overlaps.length > 0) {
+          setPendingOverlapSave(true);
+          return;
+        }
+      } catch {
+        setErrorMessage(
+          '重複予約の確認に失敗しました。通信環境をご確認のうえ再度お試しください。',
+        );
         return;
+      } finally {
+        setIsSaving(false);
       }
     }
 
@@ -299,6 +332,21 @@ export default function ReservationFormPage() {
     return (
       <div className="min-h-dvh flex items-center justify-center">
         <p className="text-sm text-ink-soft">読み込み中…</p>
+      </div>
+    );
+  }
+
+  if (loadErrorMessage) {
+    return (
+      <div className="min-h-dvh flex flex-col items-center justify-center p-6 gap-4">
+        <p className="text-sm text-lumina-pink-deep">{loadErrorMessage}</p>
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="text-sm text-lumina-wisteria"
+        >
+          戻る
+        </button>
       </div>
     );
   }
@@ -396,7 +444,9 @@ export default function ReservationFormPage() {
                           className="w-full text-left px-4 py-2.5 active:bg-lumina-blush/40
                                      transition-colors"
                         >
-                          <span className="text-sm text-ink">{suggestion.customerName}</span>
+                          <span className="text-sm text-ink">
+                            {suggestion.customerName}
+                          </span>
                           {suggestion.customerKana && (
                             <span className="text-xs text-ink-soft ml-2">
                               {suggestion.customerKana}
@@ -550,7 +600,9 @@ export default function ReservationFormPage() {
       {pendingNotifyConfirm && (
         <ConfirmDialog
           title="通知メールの送信"
-          message={'変更内容をスタッフに通知メールで知らせますか?\n(どちらを選んでも保存は行われます)'}
+          message={
+            '変更内容をスタッフに通知メールで知らせますか?\n(どちらを選んでも保存は行われます)'
+          }
           confirmLabel="送る"
           cancelLabel="送らない"
           onCancel={() => {

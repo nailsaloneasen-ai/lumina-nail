@@ -22,6 +22,15 @@ export interface CustomerSuggestion {
 
 let cachedSuggestions: CustomerSuggestion[] | null = null;
 
+/**
+ * 顧客リストのキャッシュを破棄する。
+ * 予約を登録・編集した後に呼ぶと、次に予約フォームを開いたとき最新の顧客名が候補に出る
+ * (呼ばないと、アプリを再読み込みするまで新しく登録した顧客が候補に出ない)。
+ */
+export function invalidateCustomerSuggestions(): void {
+  cachedSuggestions = null;
+}
+
 /** 過去の全予約から重複のない顧客リストを作る(結果はメモリにキャッシュされる) */
 export async function getCustomerSuggestions(): Promise<CustomerSuggestion[]> {
   if (cachedSuggestions) return cachedSuggestions;
@@ -33,7 +42,9 @@ export async function getCustomerSuggestions(): Promise<CustomerSuggestion[]> {
     const data = docSnapshot.data() as Reservation;
     if (data.isDeleted || !data.customerName) return;
 
-    const key = data.phoneNumber ? `phone:${data.phoneNumber}` : `name:${data.customerName}`;
+    const key = data.phoneNumber
+      ? `phone:${data.phoneNumber}`
+      : `name:${data.customerName}`;
     if (!seen.has(key)) {
       seen.set(key, {
         customerName: data.customerName,

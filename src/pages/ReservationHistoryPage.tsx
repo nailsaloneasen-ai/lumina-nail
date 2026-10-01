@@ -22,13 +22,22 @@ export default function ReservationHistoryPage() {
   const navigate = useNavigate();
   const [entries, setEntries] = useState<PaymentHistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id || user?.role !== 'owner') return;
-    const unsubscribe = subscribePaymentHistory(id, (data) => {
-      setEntries(data);
-      setIsLoading(false);
-    });
+    const unsubscribe = subscribePaymentHistory(
+      id,
+      (data) => {
+        setEntries(data);
+        setIsLoading(false);
+        setErrorMessage(null);
+      },
+      () => {
+        setIsLoading(false);
+        setErrorMessage('修正履歴の取得に失敗しました。通信環境をご確認ください。');
+      },
+    );
     return unsubscribe;
   }, [id, user]);
 
@@ -64,7 +73,11 @@ export default function ReservationHistoryPage() {
           <p className="text-sm text-ink-soft py-6 text-center">読み込み中…</p>
         )}
 
-        {!isLoading && entries.length === 0 && (
+        {errorMessage && (
+          <p className="text-sm text-lumina-pink-deep py-6 text-center">{errorMessage}</p>
+        )}
+
+        {!isLoading && !errorMessage && entries.length === 0 && (
           <div className="glass-card p-5">
             <p className="text-sm text-ink-soft py-6 text-center">
               修正履歴はまだありません

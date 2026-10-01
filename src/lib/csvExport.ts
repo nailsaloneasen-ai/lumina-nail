@@ -9,9 +9,20 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 /**
  * CSVの1つの値を安全な形にする(カンマ・改行・ダブルクォートを含む場合はエスケープする)
  */
-function escapeCsvCell(value: string | number): string {
-  const text = String(value);
-  if (text.includes(',') || text.includes('\n') || text.includes('"')) {
+export function escapeCsvCell(value: string | number): string {
+  let text = String(value);
+  // 顧客名などが「=」「+」「-」「@」で始まっていると、Excelで開いた際に
+  // 数式として実行されてしまう(CSVインジェクション)。先頭に「'」を付けて文字列として扱わせる。
+  // (数値は対象外。負の金額などを壊さないため)
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(text)) {
+    text = `'${text}`;
+  }
+  if (
+    text.includes(',') ||
+    text.includes('\n') ||
+    text.includes('\r') ||
+    text.includes('"')
+  ) {
     return `"${text.replace(/"/g, '""')}"`;
   }
   return text;

@@ -39,39 +39,54 @@ const EMPTY_SUMMARY: RevenueSummary = {
  */
 const REVENUE_QUERY_LIMIT = 3000;
 
+/** 読み込み中に返す空配列(毎回新しい配列を作らないための定数) */
+const NO_RESERVATIONS: Reservation[] = [];
+
 /**
  * 指定した日付範囲(start〜end、YYYY-MM-DD)の売上サマリーと未会計一覧を取得するフック。
  * 「今日/今月/年」のプリセット期間だけでなく、任意の期間指定(カスタム期間)にも対応する。
  */
 export function useRevenueData(start: string, end: string): UseRevenueDataResult {
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // 取得したデータが「どの期間のものか」をkeyとして一緒に持つ。
+  // こうすることで、期間を切り替えた直後(新しい期間のデータが届く前)に、
+  // 前の期間のデータが新しい期間のラベルのまま表示される(特に給与・売上の金額が
+  // 実際と違う期間の値で表示される)のを防ぐ。
+  const rangeKey = `${start}_${end}`;
+  const [loaded, setLoaded] = useState<{
+    key: string;
+    reservations: Reservation[];
+    errorMessage: string | null;
+  } | null>(null);
 
   useEffect(() => {
     const unsubscribe = subscribeReservationsByDateRange(
       start,
       end,
       (data) => {
-        setReservations(data);
-        setIsLoading(false);
-        setErrorMessage(null);
+        setLoaded({ key: rangeKey, reservations: data, errorMessage: null });
       },
       () => {
-        setIsLoading(false);
-        setErrorMessage('売上データの取得に失敗しました。通信環境をご確認ください。');
+        setLoaded({
+          key: rangeKey,
+          reservations: [],
+          errorMessage: '売上データの取得に失敗しました。通信環境をご確認ください。',
+        });
       },
       REVENUE_QUERY_LIMIT,
     );
 
     return unsubscribe;
-  }, [start, end]);
+  }, [start, end, rangeKey]);
+
+  const isCurrent = loaded !== null && loaded.key === rangeKey;
+  const reservations = isCurrent ? loaded.reservations : NO_RESERVATIONS;
+  const errorMessage = isCurrent ? loaded.errorMessage : null;
 
   return {
     summary: reservations.length > 0 ? summarizeRevenue(reservations) : EMPTY_SUMMARY,
     unpaidReservations: filterUnpaidReservations(reservations),
     reservations,
-    isLoading,
+    isLoading: !isCurrent,
     errorMessage,
     isPossiblyIncomplete: reservations.length >= REVENUE_QUERY_LIMIT,
   };

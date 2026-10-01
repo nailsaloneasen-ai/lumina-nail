@@ -51,6 +51,35 @@ export function dateRangeForPeriod(
 }
 
 /**
+ * 前後の期間(先月・先週など)に移動したときの基準日を計算する。
+ *
+ * 月・年の移動では、基準日をその月/年の1日に揃えてから動かす。
+ * 日付(31日など)のまま setMonth すると、移動先に同じ日が存在しない場合に
+ * 翌月へはみ出してしまうため(例: 3月31日の1か月前 → 「2月31日」= 3月3日)。
+ * 月・年の集計範囲は基準日の「年月」だけで決まるので、1日に揃えても結果は変わらない。
+ */
+export function shiftPeriodBaseDate(
+  period: Exclude<RevenuePeriod, 'custom'>,
+  baseDate: Date,
+  direction: 1 | -1,
+): Date {
+  if (period === 'today') {
+    const next = new Date(baseDate);
+    next.setDate(next.getDate() + direction);
+    return next;
+  }
+  if (period === 'week') {
+    const next = new Date(baseDate);
+    next.setDate(next.getDate() + direction * 7);
+    return next;
+  }
+  if (period === 'month') {
+    return new Date(baseDate.getFullYear(), baseDate.getMonth() + direction, 1);
+  }
+  return new Date(baseDate.getFullYear() + direction, 0, 1);
+}
+
+/**
  * 予約一覧から売上サマリーを集計する。
  * 集計対象は「会計済み(isPaid)」かつ「売上対象(isRevenueTarget)」の予約のみ。
  *
@@ -90,7 +119,8 @@ export function summarizeRevenue(reservations: Reservation[]): RevenueSummary {
   }
 
   const totalRevenue = cashRevenue + cardRevenue + emoneyRevenue;
-  const actualReceivedTotal = actualReceivedCash + actualReceivedCard + actualReceivedEmoney;
+  const actualReceivedTotal =
+    actualReceivedCash + actualReceivedCard + actualReceivedEmoney;
   const customerCount = targetReservations.length;
   const averageSpend = customerCount > 0 ? Math.round(totalRevenue / customerCount) : 0;
 
@@ -257,7 +287,13 @@ export function summarizeBySource(reservations: Reservation[]): BookingSourceSum
 
   const bySource = new Map<
     string,
-    { count: number; revenue: number; cashRevenue: number; cardRevenue: number; emoneyRevenue: number }
+    {
+      count: number;
+      revenue: number;
+      cashRevenue: number;
+      cardRevenue: number;
+      emoneyRevenue: number;
+    }
   >();
 
   for (const reservation of targetReservations) {
@@ -286,7 +322,10 @@ export function summarizeBySource(reservations: Reservation[]): BookingSourceSum
 }
 
 /** 指定した予約媒体の予約一覧を、新しい順に絞り込む(詳細モーダル用) */
-export function filterBySource(reservations: Reservation[], source: string): Reservation[] {
+export function filterBySource(
+  reservations: Reservation[],
+  source: string,
+): Reservation[] {
   return reservations
     .filter((r) => {
       if (!r.isPaid || !r.payment || !r.payment.isRevenueTarget) return false;

@@ -4,7 +4,11 @@ import AppHeader from '../components/AppHeader';
 import BottomNav from '../components/BottomNav';
 import { useAuth } from '../contexts/AuthContext';
 import { useRevenueData } from '../hooks/useRevenueData';
-import { calculateStaffSalary, dateRangeForPeriod } from '../lib/revenue';
+import {
+  calculateStaffSalary,
+  dateRangeForPeriod,
+  shiftPeriodBaseDate,
+} from '../lib/revenue';
 import { formatCurrency, formatDateJP } from '../utils/format';
 import type { RevenuePeriod, SalarySummary } from '../types';
 
@@ -18,21 +22,6 @@ const PERIOD_LABELS: Record<SalaryPeriod, string> = {
   year: '年',
 };
 
-/** 前後移動ボタンを押したときに、期間の種類に応じてbaseDateをどれだけずらすかを決める */
-function shiftBaseDate(period: SalaryPeriod, baseDate: Date, direction: 1 | -1): Date {
-  const next = new Date(baseDate);
-  if (period === 'today') {
-    next.setDate(next.getDate() + direction);
-  } else if (period === 'week') {
-    next.setDate(next.getDate() + direction * 7);
-  } else if (period === 'month') {
-    next.setMonth(next.getMonth() + direction);
-  } else {
-    next.setFullYear(next.getFullYear() + direction);
-  }
-  return next;
-}
-
 /** 画面上部に出す、今見ている期間が具体的にいつなのかのラベル(実際の年月・日付・週の範囲) */
 function periodLabel(
   period: SalaryPeriod,
@@ -40,8 +29,10 @@ function periodLabel(
   range: { start: string; end: string },
 ): string {
   if (period === 'today') return formatDateJP(range.start);
-  if (period === 'week') return `${formatShortDate(range.start)}〜${formatShortDate(range.end)}`;
-  if (period === 'month') return `${baseDate.getFullYear()}年${baseDate.getMonth() + 1}月`;
+  if (period === 'week')
+    return `${formatShortDate(range.start)}〜${formatShortDate(range.end)}`;
+  if (period === 'month')
+    return `${baseDate.getFullYear()}年${baseDate.getMonth() + 1}月`;
   return `${baseDate.getFullYear()}年`;
 }
 
@@ -88,12 +79,12 @@ export default function SalaryPage() {
   }
 
   function handlePrev() {
-    setBaseDate((current) => shiftBaseDate(period, current, -1));
+    setBaseDate((current) => shiftPeriodBaseDate(period, current, -1));
   }
 
   function handleNext() {
     if (isAtCurrentPeriod) return;
-    setBaseDate((current) => shiftBaseDate(period, current, 1));
+    setBaseDate((current) => shiftPeriodBaseDate(period, current, 1));
   }
 
   // 従業員がURLを直接開いた場合の防御(ナビゲーション上は従業員に表示されない)
@@ -188,7 +179,10 @@ export default function SalaryPage() {
               <p className="text-xs text-ink-soft mb-1">
                 給与({periodLabel(period, baseDate, range)})
               </p>
-              <p className="text-4xl text-ink" style={{ fontFamily: 'var(--font-display)' }}>
+              <p
+                className="text-4xl text-ink"
+                style={{ fontFamily: 'var(--font-display)' }}
+              >
                 {formatCurrency(salary.salary)}
               </p>
             </div>
@@ -197,7 +191,10 @@ export default function SalaryPage() {
             <div className="glass-card p-5 space-y-3">
               <p className="text-sm font-medium text-ink mb-1">計算内訳</p>
 
-              <SalaryRow label="売上(施術金額ベース)" value={formatCurrency(salary.revenue)} />
+              <SalaryRow
+                label="売上(施術金額ベース)"
+                value={formatCurrency(salary.revenue)}
+              />
               <SalaryRow label="売上の半分" value={formatCurrency(salary.half)} />
               <SalaryRow
                 label="税抜き変換後(1円未満切り上げ)"
@@ -219,7 +216,8 @@ export default function SalaryPage() {
             {/* 計算式の説明 */}
             <div className="glass-card p-5">
               <p className="text-xs text-ink-soft leading-relaxed">
-                給与 = 売上の半分を税抜きに変換した金額(1円未満切り上げ) + 指名ボーナス(1件500円)
+                給与 = 売上の半分を税抜きに変換した金額(1円未満切り上げ) +
+                指名ボーナス(1件500円)
                 <br />
                 売上は施術金額ベース(ポイント値引きの影響を受けません)。指名はこのアプリでは常に従業員への指名として扱われます。
               </p>
@@ -241,7 +239,10 @@ export default function SalaryPage() {
 
       {/* 印刷(PDF出力)専用の給与明細。画面上には表示されず、印刷時にのみ表示される */}
       {!isLoading && (
-        <PrintableSalaryReport periodLabel={periodLabel(period, baseDate, range)} salary={salary} />
+        <PrintableSalaryReport
+          periodLabel={periodLabel(period, baseDate, range)}
+          salary={salary}
+        />
       )}
 
       <div className="no-print">
@@ -269,7 +270,10 @@ function PrintableSalaryReport({
 
       <table className="w-full text-sm border-collapse">
         <tbody>
-          <PrintSalaryRow label="売上(施術金額ベース)" value={formatCurrency(salary.revenue)} />
+          <PrintSalaryRow
+            label="売上(施術金額ベース)"
+            value={formatCurrency(salary.revenue)}
+          />
           <PrintSalaryRow label="売上の半分" value={formatCurrency(salary.half)} />
           <PrintSalaryRow
             label="税抜き変換後(1円未満切り上げ)"

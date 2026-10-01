@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import {
   daysSinceDeleted,
@@ -26,6 +27,7 @@ export default function TrashPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const isOnline = useOnlineStatus();
+  const { showToast } = useToast();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [restoringId, setRestoringId] = useState<string | null>(null);
@@ -34,7 +36,9 @@ export default function TrashPage() {
     if (user?.role !== 'owner') return;
 
     // 期限切れ(30日経過)の予約をバックグラウンドで完全削除する
-    void purgeExpiredTrash();
+    purgeExpiredTrash().catch((error) => {
+      console.error('ゴミ箱の自動クリーンアップに失敗しました', error);
+    });
 
     const unsubscribe = subscribeTrashedReservations((data) => {
       setReservations(data);
@@ -63,6 +67,9 @@ export default function TrashPage() {
     setRestoringId(id);
     try {
       await restoreReservation(id, user.uid);
+      showToast('予約を復元しました');
+    } catch {
+      showToast('復元に失敗しました。通信環境をご確認ください');
     } finally {
       setRestoringId(null);
     }

@@ -7,6 +7,7 @@ import {
   filterPaidByMethod,
   filterPointsUsage,
   filterUnpaidReservations,
+  shiftPeriodBaseDate,
   summarizeBySource,
   summarizeNomination,
   summarizeRevenue,
@@ -647,5 +648,58 @@ describe('filterBySource', () => {
     const result = filterBySource(reservations, 'ホットペッパー');
 
     expect(result.map((r) => r.id)).toEqual(['new', 'old']);
+  });
+});
+
+describe('shiftPeriodBaseDate(期間の前後移動)', () => {
+  it('月末(31日)から1か月前に戻っても、日付が存在しない月でずれずに前月になる', () => {
+    // 3月31日の1か月前は「2月31日(=3月3日)」ではなく2月になること
+    const result = shiftPeriodBaseDate('month', new Date(2026, 2, 31), -1);
+    expect(result.getFullYear()).toBe(2026);
+    expect(result.getMonth()).toBe(1); // 2月
+    expect(dateRangeForPeriod('month', result)).toEqual({
+      start: '2026-02-01',
+      end: '2026-02-28',
+    });
+  });
+
+  it('10月31日から1か月前は9月になる(9月は30日まで)', () => {
+    const result = shiftPeriodBaseDate('month', new Date(2026, 9, 31), -1);
+    expect(result.getMonth()).toBe(8);
+    expect(dateRangeForPeriod('month', result).end).toBe('2026-09-30');
+  });
+
+  it('月は年をまたいで前後に移動できる', () => {
+    const prev = shiftPeriodBaseDate('month', new Date(2026, 0, 31), -1);
+    expect([prev.getFullYear(), prev.getMonth()]).toEqual([2025, 11]);
+    const next = shiftPeriodBaseDate('month', new Date(2025, 11, 31), 1);
+    expect([next.getFullYear(), next.getMonth()]).toEqual([2026, 0]);
+  });
+
+  it('うるう日(2月29日)から1年前に戻っても、同じ年の3月にならずに前年になる', () => {
+    const result = shiftPeriodBaseDate('year', new Date(2028, 1, 29), -1);
+    expect(result.getFullYear()).toBe(2027);
+    expect(dateRangeForPeriod('year', result)).toEqual({
+      start: '2027-01-01',
+      end: '2027-12-31',
+    });
+  });
+
+  it('今日は1日単位、週は7日単位で移動する', () => {
+    const day = shiftPeriodBaseDate('today', new Date(2026, 2, 1), -1);
+    expect(dateRangeForPeriod('today', day).start).toBe('2026-02-28');
+    const week = shiftPeriodBaseDate('week', new Date(2026, 2, 4), -1);
+    expect(dateRangeForPeriod('week', week)).toEqual({
+      start: '2026-02-22',
+      end: '2026-02-28',
+    });
+  });
+
+  it('元の日付オブジェクトを書き換えない', () => {
+    const base = new Date(2026, 2, 31);
+    shiftPeriodBaseDate('month', base, -1);
+    shiftPeriodBaseDate('today', base, 1);
+    expect(base.getMonth()).toBe(2);
+    expect(base.getDate()).toBe(31);
   });
 });

@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocsFromServer, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import type { BackupPayload, Reservation } from '../types';
 
@@ -12,9 +12,16 @@ const RESERVATIONS_COLLECTION = 'reservations';
  * -----------------------------------------------------------------------
  */
 
-/** 全予約データ(削除済み含む)を取得し、バックアップ用JSON文字列を生成する */
+/**
+ * 全予約データ(削除済み含む)を取得し、バックアップ用JSON文字列を生成する。
+ *
+ * 端末のキャッシュ(過去に開いた予約だけが入っている不完全なデータ)から
+ * バックアップが作られてしまうのを防ぐため、必ずサーバーから取得する。
+ * 通信できない場合はエラーになる(「一部しか入っていないバックアップ」より、
+ * 失敗してやり直せる方が安全なため)。
+ */
 export async function exportBackupJson(): Promise<string> {
-  const snapshot = await getDocs(collection(db, RESERVATIONS_COLLECTION));
+  const snapshot = await getDocsFromServer(collection(db, RESERVATIONS_COLLECTION));
   const reservations = snapshot.docs.map(
     (d) => ({ id: d.id, ...d.data() }) as Reservation,
   );
@@ -35,7 +42,16 @@ export function validateBackupPayload(json: unknown): json is BackupPayload {
   return (
     payload.version === 1 &&
     typeof payload.exportedAt === 'string' &&
-    Array.isArray(payload.reservations)
+    Array.isArray(payload.reservations) &&
+    // 各予約にIDが無いと復元時にエラーで止まる(途中まで復元された中途半端な状態になる)ため、
+    // 復元を始める前に全件のIDと形式を確認する
+    payload.reservations.every(
+      (r) =>
+        typeof r === 'object' &&
+        r !== null &&
+        typeof (r as { id?: unknown }).id === 'string' &&
+        (r as { id: string }).id !== '',
+    )
   );
 }
 

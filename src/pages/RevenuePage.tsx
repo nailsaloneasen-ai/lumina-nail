@@ -65,9 +65,16 @@ export default function RevenuePage() {
 
   // 期間指定(custom)の場合はカスタム日付を、それ以外はプリセット期間から範囲を計算する。
   // 終了日が開始日より前になっていたら、開始日と同じ日にそろえる(安全策)。
+  // 日付欄を空にされた場合は、空文字のまま検索すると「全期間」が対象になってしまうため、
+  // 開始日は今日、終了日は開始日にそろえる。
+  const safeCustomStart = customStart || todayDateString();
+  const safeCustomEnd = customEnd || safeCustomStart;
   const range =
     period === 'custom'
-      ? { start: customStart, end: customEnd < customStart ? customStart : customEnd }
+      ? {
+          start: safeCustomStart,
+          end: safeCustomEnd < safeCustomStart ? safeCustomStart : safeCustomEnd,
+        }
       : dateRangeForPeriod(period);
 
   const {
@@ -221,8 +228,14 @@ export default function RevenuePage() {
             売上(施術金額ベース)からポイント値引き分を差し引いた、実際にお客様から受け取った金額です。
           </p>
           <div className="grid grid-cols-3 gap-3 text-center">
-            <SummaryItem label="現金" value={formatCurrency(summary.actualReceivedCash)} />
-            <SummaryItem label="カード" value={formatCurrency(summary.actualReceivedCard)} />
+            <SummaryItem
+              label="現金"
+              value={formatCurrency(summary.actualReceivedCash)}
+            />
+            <SummaryItem
+              label="カード"
+              value={formatCurrency(summary.actualReceivedCard)}
+            />
             <SummaryItem
               label="電子マネー"
               value={formatCurrency(summary.actualReceivedEmoney)}
@@ -293,7 +306,10 @@ export default function RevenuePage() {
                     <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-lumina-blush text-center">
                       <SourceMethodBreakdown label="現金" value={item.cashRevenue} />
                       <SourceMethodBreakdown label="カード" value={item.cardRevenue} />
-                      <SourceMethodBreakdown label="電子マネー" value={item.emoneyRevenue} />
+                      <SourceMethodBreakdown
+                        label="電子マネー"
+                        value={item.emoneyRevenue}
+                      />
                     </div>
                   </div>
                 ) : (

@@ -18,12 +18,16 @@ function bookingSourcesDocRef() {
   return doc(db, SETTINGS_COLLECTION, BOOKING_SOURCES_DOC_ID);
 }
 
-/** 予約媒体の選択肢一覧を取得する。未設定の場合は初期値を返す(Firestoreには保存しない) */
+/**
+ * 予約媒体の選択肢一覧を取得する。
+ * まだ一度も設定されていない(ドキュメント自体がない)場合のみ初期値を返す(Firestoreには保存しない)。
+ * 設定画面で全て削除して空にした場合は、空のまま返す
+ * (空配列を「未設定」と同一視すると、削除したはずの初期値が再読み込みで復活してしまう)。
+ */
 export async function getBookingSources(): Promise<string[]> {
   const snapshot = await getDoc(bookingSourcesDocRef());
-  const data = snapshot.data();
-  const sources = data?.sources as string[] | undefined;
-  return sources && sources.length > 0 ? sources : DEFAULT_SOURCES;
+  const sources = snapshot.data()?.sources;
+  return Array.isArray(sources) ? (sources as string[]) : DEFAULT_SOURCES;
 }
 
 /** 予約媒体の選択肢一覧を保存する(オーナーのみ実行可能) */
