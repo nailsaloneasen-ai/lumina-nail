@@ -703,3 +703,14 @@ describe('shiftPeriodBaseDate(期間の前後移動)', () => {
     expect(base.getDate()).toBe(31);
   });
 });
+
+describe('キャンセルされた予約の扱い', () => {
+  it('未会計の一覧(filterUnpaidReservations)にキャンセルされた予約を含めない', () => {
+    const reservations = [
+      makeReservation({ id: 'normal', isPaid: false }),
+      makeReservation({ id: 'cancelled', isPaid: false, cancelStatus: 'canceled' }),
+      makeReservation({ id: 'noshow', isPaid: false, cancelStatus: 'no_show' }),
+    ];
+    expect(filterUnpaidReservations(reservations).map((r) => r.id)).toEqual(['normal']);
+  });
+});

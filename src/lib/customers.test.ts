@@ -2,9 +2,27 @@ import { describe, expect, it } from 'vitest';
 import { filterCustomerSuggestions, type CustomerSuggestion } from './customers';
 
 const SUGGESTIONS: CustomerSuggestion[] = [
-  { customerName: '田中花子', customerKana: 'タナカハナコ', phoneNumber: '09011112222' },
-  { customerName: '田村太郎', customerKana: 'タムラタロウ', phoneNumber: '09033334444' },
-  { customerName: '高橋みゆき', customerKana: 'タカハシミユキ', phoneNumber: '' },
+  {
+    customerName: '田中花子',
+    customerKana: 'タナカハナコ',
+    phoneNumber: '09011112222',
+    canceledCount: 0,
+    noShowCount: 0,
+  },
+  {
+    customerName: '田村太郎',
+    customerKana: 'タムラタロウ',
+    phoneNumber: '09033334444',
+    canceledCount: 0,
+    noShowCount: 0,
+  },
+  {
+    customerName: '高橋みゆき',
+    customerKana: 'タカハシミユキ',
+    phoneNumber: '',
+    canceledCount: 0,
+    noShowCount: 0,
+  },
 ];
 
 describe('filterCustomerSuggestions', () => {

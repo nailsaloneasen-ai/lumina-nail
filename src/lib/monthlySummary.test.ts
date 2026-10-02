@@ -29,4 +29,15 @@ describe('shouldDeferMonthlySummary(未会計が残る間の送信見送り)', (
     ).toBe(false);
     expect(shouldDeferMonthlySummary(someUnpaid, new Date(2026, 9, 25))).toBe(false);
   });
+
+  it('キャンセルされた予約は未会計として数えない(キャンセルのせいで送信が止まらない)', () => {
+    const onlyCancelledUnpaid = [
+      { isPaid: true },
+      { isPaid: false, cancelStatus: 'canceled' as const },
+      { isPaid: false, cancelStatus: 'no_show' as const },
+    ];
+    expect(shouldDeferMonthlySummary(onlyCancelledUnpaid, new Date(2026, 9, 1))).toBe(
+      false,
+    );
+  });
 });

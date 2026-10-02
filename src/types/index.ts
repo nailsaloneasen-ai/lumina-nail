@@ -24,6 +24,14 @@ export type PaymentMethod = 'cash' | 'card' | 'emoney';
  * 予約(1件のネイル施術予約)
  * Firestore コレクション: reservations/{reservationId}
  */
+/**
+ * 予約のキャンセル状態。
+ * - canceled: お客様からの連絡があってのキャンセル
+ * - no_show: 連絡のない無断キャンセル
+ * (キャンセルされていない通常の予約は、未設定またはnull)
+ */
+export type CancelStatus = 'canceled' | 'no_show';
+
 export interface Reservation {
   id: string;
 
@@ -60,6 +68,16 @@ export interface Reservation {
   // --- 会計情報 ---
   payment: PaymentInfo | null;
   isPaid: boolean;
+
+  // --- キャンセル ---
+  /**
+   * キャンセル状態。未設定(古いデータ)またはnullなら通常の予約。
+   * キャンセルした予約は削除せずに残し、お客様ごとのキャンセル回数の記録に使う。
+   * 売上・予約件数・未会計・時間帯の重複判定からは除外される。
+   */
+  cancelStatus?: CancelStatus | null;
+  /** キャンセルにした日時(ISO8601)。通常の予約はnullまたは未設定 */
+  canceledAt?: string | null;
 
   // --- 削除(論理削除・ゴミ箱) ---
   isDeleted: boolean;

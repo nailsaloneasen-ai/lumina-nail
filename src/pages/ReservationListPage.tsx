@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { activeReservations, isCancelled } from '../lib/cancellation';
 import { subscribeReservationsByDate } from '../lib/reservations';
 import { formatCurrency, formatDateJP } from '../utils/format';
 import { useEffect, useState } from 'react';
@@ -44,6 +45,12 @@ export default function ReservationListPage() {
   }, [date]);
 
   if (!date) return null;
+
+  // キャンセルされた予約は一覧の最後に薄く表示する(件数・印刷用の予約表には含めない)
+  const orderedReservations = [
+    ...reservations.filter((r) => !isCancelled(r)),
+    ...reservations.filter((r) => isCancelled(r)),
+  ];
 
   return (
     <div className="min-h-dvh pb-24">
@@ -92,7 +99,7 @@ export default function ReservationListPage() {
 
           {!isLoading && reservations.length > 0 && (
             <div className="space-y-2">
-              {reservations.map((reservation) => (
+              {orderedReservations.map((reservation) => (
                 <ReservationListItem
                   key={reservation.id}
                   reservation={reservation}
@@ -117,7 +124,12 @@ export default function ReservationListPage() {
       </main>
 
       {/* 印刷(PDF出力)専用の予約表。画面上には表示されず、印刷時にのみ表示される */}
-      {!isLoading && <PrintableReservationList date={date} reservations={reservations} />}
+      {!isLoading && (
+        <PrintableReservationList
+          date={date}
+          reservations={activeReservations(reservations)}
+        />
+      )}
 
       <div className="no-print">
         <BottomNav />

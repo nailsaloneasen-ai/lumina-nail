@@ -13,6 +13,7 @@ import {
   shiftMonth,
   shiftWeek,
 } from '../utils/calendar';
+import { activeReservations } from '../lib/cancellation';
 import { getDayStatus } from '../lib/reservations';
 import { todayDateString } from '../utils/format';
 
@@ -211,7 +212,10 @@ export default function CalendarPage() {
               const dayReservations = reservationsByDate.get(cell.date);
               const status = getDayStatus(dayReservations);
               const isToday = cell.date === todayString;
-              const count = dayReservations?.length ?? 0;
+              // キャンセルされた予約は人数に含めない
+              const count = dayReservations
+                ? activeReservations(dayReservations).length
+                : 0;
 
               return (
                 <button

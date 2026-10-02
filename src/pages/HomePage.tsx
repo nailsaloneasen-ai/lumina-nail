@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useTodayReservations } from '../hooks/useTodayReservations';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import { activeReservations, isCancelled } from '../lib/cancellation';
 import { sumTodayRevenue } from '../lib/reservations';
 import { formatCurrency, formatDateJP, todayDateString } from '../utils/format';
 import AppHeader from '../components/AppHeader';
@@ -32,6 +33,13 @@ export default function HomePage() {
 
   const isOwner = user?.role === 'owner';
   const todayRevenue = sumTodayRevenue(reservations);
+  // キャンセルされた予約は件数に含めず、一覧の最後に薄く表示する
+  const activeCount = activeReservations(reservations).length;
+  const cancelledCount = reservations.length - activeCount;
+  const orderedReservations = [
+    ...reservations.filter((r) => !isCancelled(r)),
+    ...reservations.filter((r) => isCancelled(r)),
+  ];
 
   return (
     <div className="min-h-dvh pb-24" {...touchHandlers}>
@@ -65,7 +73,9 @@ export default function HomePage() {
         <div className="glass-card p-5">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-medium text-ink">今日の予約</p>
-            <span className="text-xs text-ink-soft">{reservations.length}件</span>
+            <span className="text-xs text-ink-soft">
+              {activeCount}件{cancelledCount > 0 ? `(キャンセル${cancelledCount}件)` : ''}
+            </span>
           </div>
 
           {isLoading && <ReservationListSkeleton />}
@@ -84,7 +94,7 @@ export default function HomePage() {
 
           {!isLoading && !errorMessage && reservations.length > 0 && (
             <div className="space-y-2">
-              {reservations.map((reservation) => (
+              {orderedReservations.map((reservation) => (
                 <ReservationListItem
                   key={reservation.id}
                   reservation={reservation}

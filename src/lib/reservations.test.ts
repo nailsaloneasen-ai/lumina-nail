@@ -170,3 +170,32 @@ describe('isTimeOverlapping(予約時間の重複判定)', () => {
     ).toBe(false);
   });
 });
+
+describe('getDayStatus(キャンセルされた予約の扱い)', () => {
+  it('キャンセルだけの日は「予約なし」として扱う', () => {
+    expect(
+      getDayStatus([
+        makeReservation({ id: 'a', cancelStatus: 'canceled' }),
+        makeReservation({ id: 'b', cancelStatus: 'no_show' }),
+      ]),
+    ).toBe('none');
+  });
+
+  it('キャンセルされた未会計の予約は、ピンク(未会計あり)の判定に含めない', () => {
+    expect(
+      getDayStatus([
+        makeReservation({ id: 'a', isPaid: true }),
+        makeReservation({ id: 'b', isPaid: false, cancelStatus: 'canceled' }),
+      ]),
+    ).toBe('paid');
+  });
+
+  it('キャンセル以外に未会計の予約があれば、未会計ありのまま', () => {
+    expect(
+      getDayStatus([
+        makeReservation({ id: 'a', isPaid: false }),
+        makeReservation({ id: 'b', isPaid: false, cancelStatus: 'canceled' }),
+      ]),
+    ).toBe('unpaid');
+  });
+});

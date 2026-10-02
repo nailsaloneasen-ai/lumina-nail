@@ -5,15 +5,24 @@ import { DetailFieldsSkeleton } from '../components/Skeleton';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { useCancellationCounts } from '../hooks/useCancellationCounts';
 import { useReservation } from '../hooks/useReservation';
 import {
+  CANCEL_STATUS_LABELS,
+  canMarkCancelled,
+  formatCancellationCounts,
+  isCancelled,
+} from '../lib/cancellation';
+import { invalidateCustomerSuggestions } from '../lib/customers';
+import {
+  setReservationCancelStatus,
   softDeleteReservation,
   updateReservationMemo,
   updateReservationNomination,
 } from '../lib/reservations';
 import { restoreReservation } from '../lib/trash';
 import { formatCurrency, formatDateJP, formatPhoneNumber } from '../utils/format';
-import type { PaymentMethod, Reservation } from '../types';
+import type { CancelStatus, PaymentMethod, Reservation } from '../types';
 
 const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: '現金',
@@ -48,8 +57,19 @@ export default function ReservationDetailPage() {
   const [memoDraft, setMemoDraft] = useState('');
   const [isSavingMemo, setIsSavingMemo] = useState(false);
   const [isSavingNomination, setIsSavingNomination] = useState(false);
+  const [isChangingCancel, setIsChangingCancel] = useState(false);
 
   const isOwner = user?.role === 'owner';
+
+  // このお客様の通算キャンセル回数(キャンセル操作のたびに取得し直す)
+  const cancellationCounts = useCancellationCounts(
+    reservation?.customerName,
+    reservation?.phoneNumber,
+    reservation?.cancelStatus ?? 'none',
+  );
+  const cancellationText = cancellationCounts
+    ? formatCancellationCounts(cancellationCounts)
+    : null;
 
   if (errorMessage) {
     return (
@@ -109,6 +129,51 @@ export default function ReservationDetailPage() {
     }
   }
 
+  /**
+   * 予約をキャンセル(または無断キャンセル)にする。
+   * 予約は削除せず残り、売上・予約件数・未会計の集計から外れる。
+   * 誤操作に備え、削除と同じく「元に戻す」付きのトースト通知を表示する。
+   */
+  async function handleCancel(status: CancelStatus) {
+    if (!user || !id) return;
+    setIsChangingCancel(true);
+    try {
+      await setReservationCancelStatus(id, status, user.uid);
+      invalidateCustomerSuggestions();
+      showToast(`${CANCEL_STATUS_LABELS[status]}にしました`, {
+        actionLabel: '元に戻す',
+        onAction: () => {
+          setReservationCancelStatus(id, null, user.uid)
+            .then(() => invalidateCustomerSuggestions())
+            .catch(() => {
+              showToast(
+                '元に戻せませんでした。「キャンセルを取り消す」から戻してください',
+              );
+            });
+        },
+        durationMs: 5000,
+      });
+    } catch {
+      showToast('キャンセルの処理に失敗しました。通信環境をご確認ください');
+    } finally {
+      setIsChangingCancel(false);
+    }
+  }
+
+  async function handleUndoCancel() {
+    if (!user || !id) return;
+    setIsChangingCancel(true);
+    try {
+      await setReservationCancelStatus(id, null, user.uid);
+      invalidateCustomerSuggestions();
+      showToast('キャンセルを取り消しました');
+    } catch {
+      showToast('取り消しに失敗しました。通信環境をご確認ください');
+    } finally {
+      setIsChangingCancel(false);
+    }
+  }
+
   function startEditingMemo() {
     setMemoDraft(reservation!.memo);
     setIsEditingMemo(true);
@@ -162,7 +227,11 @@ export default function ReservationDetailPage() {
           {/* 会計ステータス */}
           <div className="flex items-center justify-between">
             <p className="text-xs text-ink-soft">{formatDateJP(reservation.date)}</p>
-            {reservation.isPaid ? (
+            {reservation.cancelStatus && isCancelled(reservation) ? (
+              <span className="text-xs font-medium text-ink-soft bg-lumina-blush/60 rounded-full px-3 py-1">
+                {CANCEL_STATUS_LABELS[reservation.cancelStatus]}
+              </span>
+            ) : reservation.isPaid ? (
               <span className="text-xs font-medium text-white bg-status-paid rounded-full px-3 py-1">
                 会計済
               </span>
@@ -174,6 +243,11 @@ export default function ReservationDetailPage() {
           </div>
 
           <DetailRow label="顧客名" value={reservation.customerName} large />
+          {cancellationText && (
+            <p className="text-xs text-lumina-pink-deep bg-lumina-cream rounded-lg px-3 py-2 -mt-1">
+              このお客様の通算: {cancellationText}
+            </p>
+          )}
           {reservation.customerKana && (
             <DetailRow label="読み仮名" value={reservation.customerKana} />
           )}
@@ -305,16 +379,60 @@ export default function ReservationDetailPage() {
           </div>
         </div>
 
-        {/* 支払いボタン(全員利用可) */}
-        <button
-          type="button"
-          onClick={() => navigate(`/reservation/${id}/pay`)}
-          className="w-full brand-gradient rounded-xl py-3.5 text-white font-medium
-                     shadow-lg shadow-lumina-wisteria/20 transition-[opacity,transform]
-                     active:opacity-90 active:scale-[0.98]"
-        >
-          {reservation.isPaid ? '会計内容を確認・修正' : '支払い'}
-        </button>
+        {/* 支払いボタン(全員利用可)。キャンセルされた予約は会計できない */}
+        {isCancelled(reservation) ? (
+          <p className="text-xs text-ink-soft text-center py-2">
+            この予約はキャンセルされています(売上・件数には含まれません)
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={() => navigate(`/reservation/${id}/pay`)}
+            className="w-full brand-gradient rounded-xl py-3.5 text-white font-medium
+                       shadow-lg shadow-lumina-wisteria/20 transition-[opacity,transform]
+                       active:opacity-90 active:scale-[0.98]"
+          >
+            {reservation.isPaid ? '会計内容を確認・修正' : '支払い'}
+          </button>
+        )}
+
+        {/* キャンセル操作(オーナーのみ)。会計済みの予約は売上に入っているためキャンセルできない */}
+        {isOwner && canMarkCancelled(reservation) && (
+          <div className="flex gap-3">
+            <button
+              type="button"
+              disabled={!isOnline || isChangingCancel}
+              onClick={() => void handleCancel('canceled')}
+              className="flex-1 rounded-xl py-3 text-sm font-medium text-ink-soft
+                         border border-ink-soft/30 transition-[background-color,transform]
+                         active:bg-lumina-blush/40 active:scale-[0.98] disabled:opacity-50"
+            >
+              キャンセル
+            </button>
+            <button
+              type="button"
+              disabled={!isOnline || isChangingCancel}
+              onClick={() => void handleCancel('no_show')}
+              className="flex-1 rounded-xl py-3 text-sm font-medium text-ink-soft
+                         border border-ink-soft/30 transition-[background-color,transform]
+                         active:bg-lumina-blush/40 active:scale-[0.98] disabled:opacity-50"
+            >
+              無断キャンセル
+            </button>
+          </div>
+        )}
+        {isOwner && isCancelled(reservation) && (
+          <button
+            type="button"
+            disabled={!isOnline || isChangingCancel}
+            onClick={() => void handleUndoCancel()}
+            className="w-full rounded-xl py-3 text-sm font-medium text-lumina-wisteria
+                       border border-lumina-wisteria/30 transition-[background-color,transform]
+                       active:bg-lumina-blush/40 active:scale-[0.98] disabled:opacity-50"
+          >
+            {isChangingCancel ? '処理中…' : 'キャンセルを取り消す(通常の予約に戻す)'}
+          </button>
+        )}
 
         {/* 編集・削除(オーナーのみ) */}
         {isOwner && (

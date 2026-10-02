@@ -18,6 +18,8 @@ import { getReservationsInRangeOnce } from './reservations';
 import { calculateStaffSalary, summarizeNomination, summarizeRevenue } from './revenue';
 import { getNotificationSettings } from './settings';
 import { NOTIFY_SECRET, NOTIFY_WEBAPP_URL } from './notifyConfig';
+import { isCancelled } from './cancellation';
+import type { CancelStatus } from '../types';
 
 const MONTHLY_SUMMARY_DOC_ID = 'monthlySummary';
 
@@ -57,11 +59,12 @@ export const SUMMARY_DEFER_UNTIL_DAY = 10;
  * (前月分に未会計の予約が残っていて、まだ猶予期間内の場合に true)
  */
 export function shouldDeferMonthlySummary(
-  reservations: { isPaid: boolean }[],
+  reservations: { isPaid: boolean; cancelStatus?: CancelStatus | null }[],
   now: Date,
 ): boolean {
   if (now.getDate() >= SUMMARY_DEFER_UNTIL_DAY) return false;
-  return reservations.some((r) => !r.isPaid);
+  // キャンセルされた予約は会計されないので、未会計として数えない
+  return reservations.some((r) => !r.isPaid && !isCancelled(r));
 }
 
 /**

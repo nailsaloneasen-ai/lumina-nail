@@ -1,4 +1,5 @@
 import { toDateString } from '../utils/format';
+import { isCancelled } from './cancellation';
 import type {
   BookingSourceSummary,
   NominationSummary,
@@ -141,8 +142,9 @@ export function summarizeRevenue(reservations: Reservation[]): RevenueSummary {
 
 /** 予約一覧から未会計の予約のみを抽出する(日時順) */
 export function filterUnpaidReservations(reservations: Reservation[]): Reservation[] {
+  // キャンセルされた予約は、会計の対象ではないので未会計に含めない
   return reservations
-    .filter((r) => !r.isPaid)
+    .filter((r) => !r.isPaid && !isCancelled(r))
     .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
 }
 

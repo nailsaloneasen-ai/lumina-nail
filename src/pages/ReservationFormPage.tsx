@@ -16,6 +16,7 @@ import {
 } from '../lib/reservations';
 import { notifyReservationUpdate } from '../lib/notify';
 import { buildChangeSummary, type ReservationSnapshot } from '../lib/reservationDiff';
+import { formatCancellationCounts } from '../lib/cancellation';
 import {
   filterCustomerSuggestions,
   getCustomerSuggestions,
@@ -140,6 +141,25 @@ export default function ReservationFormPage() {
   }, [isEditMode, idParam]);
 
   const endTime = startTime ? calculateEndTime(startTime, durationMinutes) : '';
+
+  // 入力中の顧客名が過去の顧客と一致し、キャンセルの履歴があれば警告として表示する
+  // (電話番号が入力済みなら電話番号も一致する顧客を優先する)
+  const trimmedName = customerName.trim();
+  const matchedCustomer =
+    trimmedName === ''
+      ? undefined
+      : (customerSuggestions.find(
+          (c) =>
+            c.customerName === trimmedName &&
+            phoneDigits &&
+            c.phoneNumber === phoneDigits,
+        ) ?? customerSuggestions.find((c) => c.customerName === trimmedName));
+  const customerCancelWarning = matchedCustomer
+    ? formatCancellationCounts({
+        canceled: matchedCustomer.canceledCount,
+        noShow: matchedCustomer.noShowCount,
+      })
+    : null;
   // 開始+施術時間が24:00以上になる(深夜0時をまたぐ)場合は、終了時間が翌日であることを表示する
   const crossesMidnight =
     startTime !== '' &&
@@ -462,12 +482,29 @@ export default function ReservationFormPage() {
                               {suggestion.customerKana}
                             </span>
                           )}
+                          {formatCancellationCounts({
+                            canceled: suggestion.canceledCount,
+                            noShow: suggestion.noShowCount,
+                          }) && (
+                            <span className="text-[10px] text-lumina-pink-deep ml-2">
+                              {formatCancellationCounts({
+                                canceled: suggestion.canceledCount,
+                                noShow: suggestion.noShowCount,
+                              })}
+                            </span>
+                          )}
                         </button>
                       </li>
                     ),
                   )}
                 </ul>
               )}
+
+            {customerCancelWarning && (
+              <p className="text-xs text-lumina-pink-deep bg-lumina-cream rounded-lg px-3 py-2 mt-2">
+                このお客様の通算: {customerCancelWarning}
+              </p>
+            )}
           </div>
 
           <div>

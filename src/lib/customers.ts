@@ -10,7 +10,8 @@
  *   一度取得したらアプリを再読み込みするまでメモリ上にキャッシュする
  * -----------------------------------------------------------------------
  */
-import { getDocs } from 'firebase/firestore';
+import { getDocs, query, where } from 'firebase/firestore';
+import { countCancellations, type CancellationCounts } from './cancellation';
 import { reservationsCollectionRef } from './reservations';
 import type { Reservation } from '../types';
 
@@ -18,6 +19,10 @@ export interface CustomerSuggestion {
   customerName: string;
   customerKana: string;
   phoneNumber: string;
+  /** 過去のキャンセル回数(無断キャンセルを除く) */
+  canceledCount: number;
+  /** 過去の無断キャンセル回数 */
+  noShowCount: number;
 }
 
 let cachedSuggestions: CustomerSuggestion[] | null = null;
@@ -45,13 +50,20 @@ export async function getCustomerSuggestions(): Promise<CustomerSuggestion[]> {
     const key = data.phoneNumber
       ? `phone:${data.phoneNumber}`
       : `name:${data.customerName}`;
-    if (!seen.has(key)) {
-      seen.set(key, {
+    let entry = seen.get(key);
+    if (!entry) {
+      entry = {
         customerName: data.customerName,
         customerKana: data.customerKana ?? '',
         phoneNumber: data.phoneNumber ?? '',
-      });
+        canceledCount: 0,
+        noShowCount: 0,
+      };
+      seen.set(key, entry);
     }
+    // お客様ごとのキャンセル回数を、同じ顧客の全予約から集計する
+    if (data.cancelStatus === 'canceled') entry.canceledCount += 1;
+    else if (data.cancelStatus === 'no_show') entry.noShowCount += 1;
   });
 
   cachedSuggestions = Array.from(seen.values());
@@ -72,4 +84,29 @@ export function filterCustomerSuggestions(
   return suggestions
     .filter((s) => s.customerName.startsWith(trimmed))
     .slice(0, maxResults);
+}
+
+/**
+ * ある顧客の通算キャンセル回数を取得する(予約詳細画面で使用)。
+ * 電話番号があれば電話番号で、なければ名前で同じ顧客かを判定する
+ * (顧客リストの重複判定と同じ基準)。その顧客の予約だけを読み込むので、
+ * 全予約を読み込む顧客リストより読み取り回数が少なくて済む。
+ */
+export async function getCancellationCounts(customer: {
+  customerName: string;
+  phoneNumber: string;
+}): Promise<CancellationCounts> {
+  const q = customer.phoneNumber
+    ? query(
+        reservationsCollectionRef(),
+        where('phoneNumber', '==', customer.phoneNumber),
+        where('isDeleted', '==', false),
+      )
+    : query(
+        reservationsCollectionRef(),
+        where('customerName', '==', customer.customerName),
+        where('isDeleted', '==', false),
+      );
+  const snapshot = await getDocs(q);
+  return countCancellations(snapshot.docs.map((d) => d.data() as Reservation));
 }

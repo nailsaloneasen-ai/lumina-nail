@@ -16,7 +16,13 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { notifyNewReservation } from './notify';
-import type { PaymentHistoryEntry, PaymentInfo, Reservation } from '../types';
+import { activeReservations } from './cancellation';
+import type {
+  CancelStatus,
+  PaymentHistoryEntry,
+  PaymentInfo,
+  Reservation,
+} from '../types';
 
 /** Firestoreの予約コレクション名 */
 const RESERVATIONS_COLLECTION = 'reservations';
@@ -167,8 +173,10 @@ export function groupReservationsByDate(
 export function getDayStatus(
   dayReservations: Reservation[] | undefined,
 ): 'none' | 'unpaid' | 'paid' {
-  if (!dayReservations || dayReservations.length === 0) return 'none';
-  const hasUnpaid = dayReservations.some((r) => !r.isPaid);
+  // キャンセルされた予約は、来店しないので色分けの判定に含めない
+  const active = dayReservations ? activeReservations(dayReservations) : [];
+  if (active.length === 0) return 'none';
+  const hasUnpaid = active.some((r) => !r.isPaid);
   return hasUnpaid ? 'unpaid' : 'paid';
 }
 
@@ -360,7 +368,29 @@ export async function findOverlappingReservations(
     .filter((r) => r.id !== excludeId);
 
   // 時間帯が重なっているか判定: 既存の開始 < 新しい終了 かつ 既存の終了 > 新しい開始
-  return reservations.filter((r) => isTimeOverlapping(r, { startTime, durationMinutes }));
+  // キャンセルされた予約の枠は空いているものとして扱う
+  return activeReservations(reservations).filter((r) =>
+    isTimeOverlapping(r, { startTime, durationMinutes }),
+  );
+}
+
+/**
+ * 予約をキャンセル(または無断キャンセル)にする。nullを渡すとキャンセルを取り消して通常の予約に戻す。
+ * 予約は削除せず残すので、お客様ごとのキャンセル回数の記録として使える。
+ * (オーナーのみ実行可能。Firestoreルール上、従業員は更新できない項目)
+ */
+export async function setReservationCancelStatus(
+  id: string,
+  status: CancelStatus | null,
+  uid: string,
+): Promise<void> {
+  const now = new Date().toISOString();
+  await updateDoc(doc(db, RESERVATIONS_COLLECTION, id), {
+    cancelStatus: status,
+    canceledAt: status ? now : null,
+    updatedAt: now,
+    updatedBy: uid,
+  });
 }
 
 /** 予約1件を一度だけ取得する(存在しない場合はnull) */
